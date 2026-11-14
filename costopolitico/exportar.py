@@ -14,7 +14,7 @@ def exportar(con, salida: Path = SALIDA) -> dict:
         gastos = [dict(g) for g in con.execute(
             "SELECT categoria, concepto, monto, periodo, fecha_inicio, fecha_fin, detalle,"
             " fuente_nombre, fuente_url, descargado_en FROM gastos WHERE persona_id = ?"
-            " ORDER BY periodo DESC, monto DESC", (p["id"],))]
+            " ORDER BY COALESCE(fecha_inicio, periodo) DESC, monto DESC", (p["id"],))]
         totales = {}
         for g in gastos:
             totales[g["categoria"]] = totales.get(g["categoria"], 0) + g["monto"]
@@ -37,6 +37,9 @@ def exportar(con, salida: Path = SALIDA) -> dict:
         "aviso": ("Montos asignados a cada persona según fuentes oficiales. No incluye el gasto de las "
                   "instituciones que dirigen. Los datos dependen de lo que cada institución publica."),
         "personas": personas,
+        "cobertura": [dict(c) for c in con.execute(
+            "SELECT categoria, fuente_nombre AS fuente, MIN(periodo) AS desde, MAX(periodo) AS hasta,"
+            " COUNT(*) AS registros FROM gastos GROUP BY categoria, fuente_nombre ORDER BY categoria")],
         "pendientes_revision": con.execute("SELECT COUNT(*) FROM sin_asignar").fetchone()[0],
     }
     salida.parent.mkdir(parents=True, exist_ok=True)

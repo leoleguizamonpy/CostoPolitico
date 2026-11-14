@@ -69,7 +69,7 @@ def test_flujo_completo(con, tmp_path):
     pdf = tmp_path / "viajes.pdf"
     _pdf_diputados(pdf)
     r = viaticos.importar_pdf_diputados(con, pdf, "https://www.diputados.gov.py/ejemplo.pdf")
-    assert r == {"nueva": 2, "repetida": 0, "sin_asignar": 1, "invalida": 0}
+    assert r == {"nueva": 2, "repetida": 0, "posible_duplicado": 0, "sin_asignar": 1, "invalida": 0}
 
     salida = tmp_path / "data.json"
     exportar(con, salida)
@@ -90,7 +90,7 @@ def test_pdf_con_y_sin_bordes(con, tmp_path, bordes):
     pdf = tmp_path / "v.pdf"
     _pdf_diputados(pdf, bordes)
     r = viaticos.importar_pdf_diputados(con, pdf, "https://www.diputados.gov.py/ejemplo.pdf")
-    assert r == {"nueva": 2, "repetida": 0, "sin_asignar": 1, "invalida": 0}
+    assert r == {"nueva": 2, "repetida": 0, "posible_duplicado": 0, "sin_asignar": 1, "invalida": 0}
     montos = sorted(g[0] for g in con.execute("SELECT monto FROM gastos WHERE categoria='viatico'"))
     assert montos == [5_000_000, 11_250_500]
 

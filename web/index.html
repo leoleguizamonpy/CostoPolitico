@@ -47,7 +47,7 @@
     margin-top: clamp(1rem, 3vw, 1.75rem);
   }
   .dato { border-left: 3px solid var(--acento); padding-left: 0.75rem; }
-  .dato b { display: block; font-size: clamp(1.2rem, 3.5vw, 1.7rem); }
+  .dato b { display: block; font-size: clamp(1.05rem, 2.6vw, 1.5rem); white-space: nowrap; font-variant-numeric: tabular-nums; }
   .dato small { color: #c9ccd6; }
   main { padding: var(--esp); }
   .aviso {
@@ -117,6 +117,7 @@
   .categorias b { display: block; font-variant-numeric: tabular-nums; }
   table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
   th, td { text-align: left; padding: 0.45rem 0.4rem; border-bottom: 1px solid var(--linea); vertical-align: top; }
+  td.fecha { white-space: nowrap; }
   td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
   a { color: var(--azul); }
   footer { color: var(--suave); font-size: 0.8rem; padding: 2rem var(--esp); text-align: center; }
@@ -159,6 +160,7 @@
   };
   const gs = n => "₲ " + Math.round(n).toLocaleString("es-PY");
   const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const fecha = iso => iso ? iso.split("-").reverse().join("/") : "";
   const sinTildes = s => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
   let datos = { personas: [] };
@@ -199,7 +201,7 @@
       .map(([k, v]) => `<div><small>${esc(CATEGORIAS[k] ?? k)}</small><b>${gs(v)}</b></div>`).join("");
     const filas = p.gastos.map(g => `
       <tr>
-        <td>${esc(g.fecha_inicio ?? g.periodo)}</td>
+        <td class="fecha">${fecha(g.fecha_inicio) || esc(g.periodo)}</td>
         <td>${esc(g.concepto)}<br><small>${esc(g.detalle ?? "")}</small></td>
         <td class="num">${gs(g.monto)}</td>
         <td><a href="${esc(g.fuente_url)}" target="_blank" rel="noopener" title="${esc(g.fuente_nombre)}">Fuente</a></td>
@@ -220,7 +222,7 @@
     document.getElementById("resumen").innerHTML = n ? `
       <div class="dato"><b>${gs(suma(() => true))}</b><small>total registrado</small></div>
       <div class="dato"><b>${gs(suma(p => p.poder === "legislativo"))}</b><small>Congreso</small></div>
-      <div class="dato"><b>${gs(suma(p => p.poder === "ejecutivo"))}</b><small>Ejecutivo</small></div>
+      <div class="dato"><b>${datos.personas.some(p => p.poder === "ejecutivo" && p.total) ? gs(suma(p => p.poder === "ejecutivo")) : "sin datos aún"}</b><small>Ejecutivo</small></div>
       <div class="dato"><b>${n}</b><small>autoridades</small></div>` : "";
   }
 
@@ -239,8 +241,9 @@
     .then(r => r.ok ? r.json() : Promise.reject(r.status))
     .then(d => {
       datos = d;
-      const fecha = new Date(d.generado_en).toLocaleDateString("es-PY", { day: "numeric", month: "long", year: "numeric" });
-      document.getElementById("aviso").textContent = `${d.aviso} Actualizado al ${fecha}.`;
+      const hoy = new Date(d.generado_en).toLocaleDateString("es-PY", { day: "numeric", month: "long", year: "numeric" });
+      const incluye = (d.cobertura || []).map(c => `${CATEGORIAS[c.categoria] ?? c.categoria} (${c.fuente.split(" — ")[0]})`).join("; ");
+      document.getElementById("aviso").textContent = `${d.aviso}${incluye ? " Incluye por ahora: " + incluye + "." : ""} Actualizado al ${hoy}.`;
       resumen();
       pintar();
     })

@@ -93,6 +93,8 @@ def importar(con, ruta, fuente_url: str = URL_PORTAL) -> dict:
             con,
             documento=v(fila, "documento") or None,
             nombre_completo=nombre,
+            nombres=v(fila, "nombres") or None,
+            apellidos=v(fila, "apellidos") or None,
             cargo=regla["titulo"],
             poder=regla["poder"],
             institucion=v(fila, "entidad").title(),

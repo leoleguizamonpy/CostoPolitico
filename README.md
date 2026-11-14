@@ -19,10 +19,12 @@ costopolitico/         código Python
   personas.py          quién cuenta como político y cómo se cruza entre fuentes
   fuentes/
     sfp_nomina.py      remuneraciones — nómina SFP (Ley 5189/14)
-    viaticos.py        viáticos — PDF de Diputados + CSV genérico (Senado, carga manual)
+    senado.py          nómina de senadores y viajes con viáticos (senado.gov.py)
+    viaticos.py        viáticos — PDF de Diputados + CSV genérico
   exportar.py          genera web/data.json
 web/index.html         la app (un solo archivo, lee data.json)
 data/plantillas/       plantillas CSV para carga manual
+data/alias.csv         correcciones manuales de nombres que no cruzan solos
 docs/fuentes.md        cada fuente: qué trae, formato, estado
 tests/                 pruebas con datos ficticios
 ```
@@ -39,8 +41,11 @@ python -m costopolitico nomina data/crudos/funcionarios_2026_9.csv
 # 2. Viáticos de Diputados: descargar el PDF del mes desde diputados.gov.py (Transparencia)
 python -m costopolitico diputados-pdf data/crudos/viajes_2026_09.pdf --url "URL_DEL_PDF"
 
-# 3. Viáticos del Senado u otros: completar data/plantillas/viaticos.csv (con fuente_url por fila)
-python -m costopolitico viaticos-csv data/crudos/viaticos_senado.csv
+# 3. Senado: nómina de senadores + todos los viajes desde 2023 (automático)
+python -m costopolitico senado --desde 2023
+
+# 3b. Otras listas de viáticos: completar data/plantillas/viaticos.csv (con fuente_url por fila)
+python -m costopolitico viaticos-csv data/crudos/otros_viaticos.csv
 
 # 4. Revisar lo que no se pudo asignar
 python -m costopolitico pendientes
@@ -50,8 +55,8 @@ python -m costopolitico exportar        # crea web/data.json
 python -m http.server -d web 8000       # ver en http://localhost:8000
 ```
 
-La nómina se importa primero: de ahí salen las personas (con cédula) a las que después se
-asignan los viáticos.
+Conviene importar primero las nóminas (SFP y Senado): de ahí salen las personas a las que
+después se asignan los viáticos. Todo es idempotente: reimportar no duplica.
 
 ## Pruebas
 
@@ -63,7 +68,8 @@ python -m pytest
 ## Hoja de ruta
 
 - [x] Base de datos, nómina SFP, viáticos de Diputados, app web
-- [ ] Scraper del Senado (viajes y viáticos)
+- [x] Scraper del Senado (nómina y viajes con viáticos)
+- [ ] Nómina de diputados (para cruzar viáticos de Diputados y Parlasur)
 - [ ] Descarga automática mensual (cron en el VPS)
 - [ ] Viáticos de ministros (Contraloría / portales de cada ministerio)
 - [ ] Fase 2: gasto institucional (DNCP, ejecución presupuestaria) en sección aparte
