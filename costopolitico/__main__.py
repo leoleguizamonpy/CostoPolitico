@@ -4,6 +4,8 @@
   python -m costopolitico diputados-pdf RUTA_PDF --url URL_DEL_PDF
   python -m costopolitico viaticos-csv RUTA_CSV
   python -m costopolitico senado [--desde 2023]
+  python -m costopolitico diputados [--desde 2023]
+  python -m costopolitico actualizar [--desde 2023]   (todo lo automático + exportar)
   python -m costopolitico pendientes
   python -m costopolitico exportar
 """
@@ -11,7 +13,7 @@ import argparse
 
 from .db import conectar
 from .exportar import exportar
-from .fuentes import senado, sfp_nomina, viaticos
+from .fuentes import diputados, senado, sfp_nomina, viaticos
 
 
 def main():
@@ -33,6 +35,12 @@ def main():
     s = sub.add_parser("senado", help="bajar nómina de senadores y viajes con viáticos desde senado.gov.py")
     s.add_argument("--desde", type=int, default=2023, help="año desde el que se bajan misiones")
 
+    s = sub.add_parser("diputados", help="bajar nómina de diputados y planillas de viáticos")
+    s.add_argument("--desde", type=int, default=2023)
+
+    s = sub.add_parser("actualizar", help="nóminas de ambas cámaras, viajes y exportación (para cron)")
+    s.add_argument("--desde", type=int, default=2023)
+
     sub.add_parser("pendientes", help="listar filas que no se pudieron asignar")
     sub.add_parser("exportar", help="generar web/data.json")
 
@@ -46,6 +54,15 @@ def main():
         print(viaticos.importar_csv(con, a.ruta))
     elif a.cmd == "senado":
         print(senado.descargar_todo(con, desde_anho=a.desde))
+    elif a.cmd == "diputados":
+        print("nómina:", diputados.descargar_nomina(con))
+        print("viáticos:", diputados.descargar_viaticos(con, desde_anho=a.desde))
+    elif a.cmd == "actualizar":
+        # Orden: primero las nóminas (las personas), después los viajes que se cruzan con ellas.
+        print("diputados — nómina:", diputados.descargar_nomina(con))
+        print("senado:", senado.descargar_todo(con, desde_anho=a.desde))
+        print("diputados — viáticos:", diputados.descargar_viaticos(con, desde_anho=a.desde))
+        print(exportar(con))
     elif a.cmd == "pendientes":
         for f in con.execute("SELECT origen, nombre, monto, detalle FROM sin_asignar ORDER BY origen, nombre"):
             print(f"[{f['origen']}] {f['nombre']} — ₲ {f['monto']:,} — {f['detalle']}".replace(",", "."))

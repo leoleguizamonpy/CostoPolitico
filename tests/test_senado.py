@@ -49,8 +49,8 @@ def test_parsers():
     assert lista[0] == {"silpy_id": "900001", "apellidos": "Prueba Gómez", "nombres": "Ana María",
                         "partido": "Partido Uno", "vitalicio": False}
     assert senado.parsear_misiones(MISIONES) == [
-        {"id": 901, "tipo": "MISION AL EXTERIOR", "mes": "09-SETIEMBRE", "anho": 2026},
-        {"id": 100, "tipo": "MISION AL INTERIOR", "mes": "08-AGOSTO", "anho": 2015},
+        {"id": 901, "congreso": False, "tipo": "MISION AL EXTERIOR", "mes": "09-SETIEMBRE", "anho": 2026},
+        {"id": 100, "congreso": False, "tipo": "MISION AL INTERIOR", "mes": "08-AGOSTO", "anho": 2015},
     ]
     viajes = senado.parsear_detalle(DETALLE)
     assert viajes[0]["asignado"] == 8_000_000 and viajes[0]["devuelto"] == 2_500_000

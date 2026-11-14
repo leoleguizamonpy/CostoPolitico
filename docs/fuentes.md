@@ -15,7 +15,8 @@ Lo que no tiene fuente no entra.
 | # | Fuente | Qué trae | Formato | Estado en el código |
 |---|---|---|---|---|
 | 1 | Nómina de funcionarios — portal de datos abiertos SFP/VCHGO (Ley 5189/14) · https://datos.sfp.gov.py/data/funcionarios · diccionario: https://datos.sfp.gov.py/def/funcionarios | Remuneración mensual de cada funcionario, incluidos cargos electivos, por objeto de gasto (111 sueldos, 113 gastos de representación, etc.) | CSV mensual (a veces ZIP) | ✅ `fuentes/sfp_nomina.py` |
-| 2 | Cámara de Diputados — "Viajes oficiales / Misiones parlamentarias" (sección Transparencia de diputados.gov.py) | Por viaje: diputado/a o funcionario/a, resolución, destino, fechas, motivo, monto del viático | PDF mensual | ✅ `fuentes/viaticos.py` (tablas con o sin bordes) |
+| 2 | Cámara de Diputados — nómina alfabética (diputados.gov.py/diputados/nomina-alfabetica) + ficha de cada diputado en SILpy | Los 80 diputados, partido e ID del SILpy. La nómina trae "APELLIDOS NOMBRES" sin separar; el corte exacto sale de comparar con el nombre de la ficha del SILpy ("Nombres Apellidos"). Sin ficha (5 de 80 en nov. 2026), se estima con la convención de dos apellidos | HTML | ✅ `fuentes/diputados.py` |
+| 2b | Cámara de Diputados — "Viajes oficiales de misiones parlamentarias" (listado Ley 5189: diputados.gov.py/transparencia/ley-5189) | Por viaje: diputado/a o funcionario/a, resolución, destino, fechas, motivo, monto del viático | PDF mensual (Word, tabla con bordes) | ✅ `fuentes/diputados.py` + `fuentes/viaticos.py`. Se omiten los "INFORME DE VIAJES…" (informes narrativos sin montos) |
 | 3 | Cámara de Senadores — nómina alfabética (senado.gov.py/index.php/menu-senadores/sub-menu-nomina-alfabetica.html) | Los 45 senadores + vitalicios, con partido e ID del SILpy | HTML | ✅ `fuentes/senado.py` |
 | 3b | Cámara de Senadores — "Detalles de viajes nacionales e internacionales" (Transparencia activa, Ley 5189) | Por viaje: beneficiario, destino, motivo, fechas, **monto asignado y monto devuelto**, informe PDF. Registros desde 2008 | HTML (tabla por misión `?idMision=N`) | ✅ `fuentes/senado.py` — se guarda el **neto** (asignado − devuelto) y el informe PDF como fuente |
 | 4 | Contraloría General — datos abiertos de rendiciones de viáticos | Viáticos de todo el sector público | Datos abiertos | ⏳ por revisar |
@@ -44,7 +45,12 @@ choferes, prensa y exsenadores.
   con seguridad queda en `sin_asignar` y se revisa con `python -m costopolitico pendientes`.
 - La nómina del Senado solo lista a los senadores **actuales**: los viajes de exsenadores
   (renuncias, pérdidas de investidura) quedan en `sin_asignar` hasta cargar el padrón histórico.
-- Los viajes de diputados al Parlasur aparecen en la web del Senado (Congreso Nacional); se
-  asignan cuando la nómina de diputados esté cargada.
+- Los viajes de diputados al Parlasur aparecen en la web del Senado, en misiones del
+  **Congreso Nacional**. Solo en esas misiones se cruza también con diputados; en las de la
+  Cámara de Senadores solo con senadores (evita asignar a un diputado el viaje de un funcionario
+  del Senado con nombre común). Verificado con datos reales: los 19 diputados encontrados en la
+  web del Senado aparecen únicamente en misiones del Congreso Nacional.
+- La API de datos abiertos del Congreso (datos.congreso.gov.py) respondía con error 502 en
+  noviembre de 2026; por eso se usan las páginas públicas.
 - Los asesores figuran en la nómina de cada cámara, pero sin indicar a qué legislador
   responden. Hace falta otra fuente (resoluciones o pedido por Ley 5282).

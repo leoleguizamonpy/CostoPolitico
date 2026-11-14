@@ -26,7 +26,7 @@ from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 
 from .. import normalizar, personas
-from .viaticos import _guardar_viaje
+from .viaticos import CARGOS_LEGISLATIVO, _guardar_viaje
 
 BASE = "https://www.senado.gov.py"
 URL_NOMINA = BASE + "/index.php/menu-senadores/sub-menu-nomina-alfabetica.html"
@@ -69,8 +69,11 @@ def parsear_misiones(html: str) -> list[dict]:
         celdas = fila.find_all("td")
         if not a or len(celdas) < 5:
             continue
+        organo = celdas[1].get_text(" ", strip=True).upper()
         misiones.append({
             "id": int(re.search(r"idMision=(\d+)", a["href"]).group(1)),
+            # "CAMARA DE SENADORES" o "CONGRESO NACIONAL" (Parlasur y órganos bicamerales)
+            "congreso": "CONGRESO NACIONAL" in organo,
             "tipo": celdas[2].get_text(strip=True),
             "mes": celdas[3].get_text(strip=True),
             "anho": int(celdas[4].get_text(strip=True) or 0),
@@ -118,18 +121,25 @@ def importar_nomina(con, html: str) -> dict:
     return {"senadores": sum(not s["vitalicio"] for s in lista), "vitalicios": sum(s["vitalicio"] for s in lista)}
 
 
-def importar_detalle(con, html: str, id_mision: int) -> dict:
-    return importar_viajes(con, parsear_detalle(html), id_mision)
+CARGOS_SENADO = ("Senador/a", "Senador/a vitalicio/a")
 
 
-def importar_viajes(con, viajes: list[dict], id_mision: int) -> dict:
+def importar_detalle(con, html: str, id_mision: int, congreso: bool = False) -> dict:
+    return importar_viajes(con, parsear_detalle(html), id_mision, congreso)
+
+
+def importar_viajes(con, viajes: list[dict], id_mision: int, congreso: bool = False) -> dict:
+    """En misiones de la Cámara de Senadores solo se cruza con senadores; en las del
+    Congreso Nacional (Parlasur, etc.) también con diputados. Evita asignar a un diputado
+    el viaje de un funcionario del Senado con nombre parecido."""
+    cargos = CARGOS_LEGISLATIVO if congreso else CARGOS_SENADO
     stats = {"nueva": 0, "repetida": 0, "posible_duplicado": 0, "sin_asignar": 0, "invalida": 0}
     url = f"{URL_MISIONES}?idMision={id_mision}"
     for v in viajes:
         estado = _guardar_viaje(
             con, nombre=v["beneficiario"], destino=v["destino"], fechas=v["fechas"],
             motivo=v["motivo"], monto=v["asignado"], devuelto=v["devuelto"],
-            origen="senado_viaticos", fuente_nombre=FUENTE,
+            origen="senado_viaticos", fuente_nombre=FUENTE, cargos=cargos,
             # El informe PDF es la prueba más directa; si no hay, la página de la misión.
             fuente_url=v["informe"] or url,
         )
@@ -158,7 +168,7 @@ def descargar_todo(con, desde_anho: int = 2023, pausa: float = 0.7, sesion=None)
     for m in parsear_misiones(bajar(URL_MISIONES)):
         if m["anho"] < desde_anho:
             continue
-        r = importar_detalle(con, bajar(f"{URL_MISIONES}?idMision={m['id']}"), m["id"])
+        r = importar_detalle(con, bajar(f"{URL_MISIONES}?idMision={m['id']}"), m["id"], m["congreso"])
         total["misiones"] += 1
         for k, v in r.items():
             total[k] += v

@@ -20,6 +20,7 @@ costopolitico/         código Python
   fuentes/
     sfp_nomina.py      remuneraciones — nómina SFP (Ley 5189/14)
     senado.py          nómina de senadores y viajes con viáticos (senado.gov.py)
+    diputados.py       nómina de diputados (+ SILpy) y planillas mensuales de viáticos
     viaticos.py        viáticos — PDF de Diputados + CSV genérico
   exportar.py          genera web/data.json
 web/index.html         la app (un solo archivo, lee data.json)
@@ -38,19 +39,22 @@ pip install -r requirements.txt
 # 1. Remuneraciones: descargar el CSV mensual desde https://datos.sfp.gov.py/data/funcionarios
 python -m costopolitico nomina data/crudos/funcionarios_2026_9.csv
 
-# 2. Viáticos de Diputados: descargar el PDF del mes desde diputados.gov.py (Transparencia)
-python -m costopolitico diputados-pdf data/crudos/viajes_2026_09.pdf --url "URL_DEL_PDF"
+# 2. Todo lo automático, en el orden correcto (nóminas de ambas cámaras, viajes, exportación).
+#    Es el comando para el cron mensual del VPS.
+python -m costopolitico actualizar --desde 2023
 
-# 3. Senado: nómina de senadores + todos los viajes desde 2023 (automático)
-python -m costopolitico senado --desde 2023
+#    O por partes:
+python -m costopolitico diputados --desde 2023   # nómina + planillas mensuales de viáticos
+python -m costopolitico senado --desde 2023      # nómina + viajes
+python -m costopolitico diputados-pdf data/crudos/planilla.pdf --url "URL_DEL_PDF"   # un PDF suelto
 
-# 3b. Otras listas de viáticos: completar data/plantillas/viaticos.csv (con fuente_url por fila)
+# 2b. Otras listas de viáticos: completar data/plantillas/viaticos.csv (con fuente_url por fila)
 python -m costopolitico viaticos-csv data/crudos/otros_viaticos.csv
 
-# 4. Revisar lo que no se pudo asignar
+# 3. Revisar lo que no se pudo asignar
 python -m costopolitico pendientes
 
-# 5. Publicar
+# 4. Publicar
 python -m costopolitico exportar        # crea web/data.json
 python -m http.server -d web 8000       # ver en http://localhost:8000
 ```
@@ -69,7 +73,7 @@ python -m pytest
 
 - [x] Base de datos, nómina SFP, viáticos de Diputados, app web
 - [x] Scraper del Senado (nómina y viajes con viáticos)
-- [ ] Nómina de diputados (para cruzar viáticos de Diputados y Parlasur)
+- [x] Nómina de diputados y descarga automática de sus planillas de viáticos
 - [ ] Descarga automática mensual (cron en el VPS)
 - [ ] Viáticos de ministros (Contraloría / portales de cada ministerio)
 - [ ] Fase 2: gasto institucional (DNCP, ejecución presupuestaria) en sección aparte
