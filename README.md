@@ -1,7 +1,12 @@
 # ¿Cuánto te cuestan tus políticos?
 
 Cuánto dinero público se asigna a cada **senador, diputado y autoridad del Ejecutivo** del
-Paraguay: sueldo, gastos de representación, viáticos y más. **Cada monto con su fuente oficial.**
+Paraguay: sueldo, gastos de representación, viáticos y personal de su despacho. **Cada monto con
+su fuente oficial.**
+
+La web muestra cuánto cuestan todos juntos por día (con un contador en vivo desde las 00:00),
+un gráfico mensual apilado por categoría, filtros por cámara, año y mes, y el ranking con la
+ficha de cada autoridad.
 
 ## Principios
 

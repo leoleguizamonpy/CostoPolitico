@@ -16,6 +16,11 @@
     --azul: #0038a8;
     --radio: 10px;
     --esp: clamp(0.75rem, 2vw, 1.25rem);
+    /* Serie del gráfico: paleta categórica validada (orden fijo, nunca por rango). */
+    --s-remuneracion: #2a78d6;
+    --s-viatico: #eb6834;
+    --s-asesores: #1baf7a;
+    --grilla: #ebe9e2;
   }
   * { box-sizing: border-box; }
   body {
@@ -31,7 +36,7 @@
     padding: clamp(1.5rem, 6vw, 3.5rem) var(--esp) clamp(1.25rem, 4vw, 2.5rem);
     border-bottom: 6px solid var(--acento);
   }
-  .contenedor { max-width: 960px; margin: 0 auto; }
+  .contenedor { max-width: 1040px; margin: 0 auto; }
   h1 {
     font-size: clamp(1.9rem, 6vw, 3.4rem);
     line-height: 1.05;
@@ -39,16 +44,40 @@
     letter-spacing: -0.02em;
   }
   h1 span { color: #ff5c6c; }
-  .bajada { color: #c9ccd6; max-width: 46ch; margin: 0; font-size: clamp(0.95rem, 2.2vw, 1.1rem); }
+  .bajada { color: #c9ccd6; max-width: 52ch; margin: 0; font-size: clamp(0.95rem, 2.2vw, 1.1rem); }
+
+  /* Contador diario */
+  .hoy {
+    margin-top: clamp(1.25rem, 4vw, 2.25rem);
+    padding: clamp(1rem, 3vw, 1.5rem);
+    border: 1px solid #343842;
+    border-radius: var(--radio);
+    background: #1d2027;
+  }
+  .hoy small { color: #c9ccd6; display: block; }
+  .hoy .grande {
+    display: block;
+    font-size: clamp(2.2rem, 9vw, 5rem);
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    margin: 0.2rem 0;
+  }
+  .hoy .vivo { font-size: clamp(1rem, 3vw, 1.35rem); font-variant-numeric: tabular-nums; color: #ff8a96; font-weight: 700; }
+  .hoy .nota { color: #9aa0ae; font-size: 0.8rem; margin-top: 0.5rem; }
+
   .resumen {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
     gap: var(--esp);
-    margin-top: clamp(1rem, 3vw, 1.75rem);
+    margin-top: clamp(1rem, 3vw, 1.5rem);
   }
   .dato { border-left: 3px solid var(--acento); padding-left: 0.75rem; }
-  .dato b { display: block; font-size: clamp(1.05rem, 2.6vw, 1.5rem); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .dato b { display: block; font-size: clamp(1.05rem, 2.6vw, 1.4rem); white-space: nowrap; font-variant-numeric: tabular-nums; }
   .dato small { color: #c9ccd6; }
+
   main { padding: var(--esp); }
   .aviso {
     background: #fff8e6;
@@ -58,8 +87,13 @@
     font-size: 0.9rem;
     margin: var(--esp) 0;
   }
-  .controles { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: var(--esp); }
-  .filtro {
+  .controles {
+    display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;
+    margin-bottom: var(--esp);
+    position: sticky; top: 0; z-index: 2;
+    background: var(--fondo); padding: 0.5rem 0;
+  }
+  .filtro, select {
     border: 1px solid var(--linea);
     background: var(--papel);
     border-radius: 999px;
@@ -67,171 +101,408 @@
     font: inherit;
     font-size: 0.9rem;
     cursor: pointer;
+    color: var(--tinta);
   }
   .filtro[aria-pressed="true"] { background: var(--tinta); color: #fff; border-color: var(--tinta); }
   input[type="search"] {
-    flex: 1 1 220px;
+    flex: 1 1 200px;
     border: 1px solid var(--linea);
     border-radius: 999px;
     padding: 0.5rem 1rem;
     font: inherit;
     background: var(--papel);
   }
-  ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
-  .fila {
-    display: grid;
-    grid-template-columns: 2.2rem 1fr auto;
-    gap: 0.75rem;
-    align-items: center;
+  .tarjeta {
     background: var(--papel);
     border: 1px solid var(--linea);
     border-radius: var(--radio);
-    padding: 0.75rem 1rem;
-    cursor: pointer;
-    text-align: left;
-    width: 100%;
-    font: inherit;
-    color: inherit;
+    padding: clamp(0.9rem, 2.5vw, 1.25rem);
+    margin-bottom: var(--esp);
+  }
+  .tarjeta h2 { font-size: 1.05rem; margin: 0 0 0.25rem; }
+  .tarjeta .sub { color: var(--suave); font-size: 0.85rem; margin: 0 0 0.75rem; }
+
+  /* Gráfico */
+  .leyenda { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; font-size: 0.85rem; margin-bottom: 0.5rem; }
+  .leyenda span { display: inline-flex; align-items: center; gap: 0.4rem; }
+  .leyenda i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+  .grafico { position: relative; }
+  .grafico svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .grafico .barra { cursor: pointer; }
+  .grafico .barra:hover rect.dato-r, .grafico .barra:focus rect.dato-r { opacity: 0.85; }
+  .grafico .tenue rect.dato-r { opacity: 0.35; }
+  .tooltip {
+    position: absolute; pointer-events: none; z-index: 3;
+    background: var(--tinta); color: #fff; border-radius: 8px;
+    padding: 0.5rem 0.65rem; font-size: 0.8rem; line-height: 1.35;
+    white-space: nowrap; transform: translate(-50%, calc(-100% - 10px));
+    font-variant-numeric: tabular-nums;
+  }
+  .tooltip i { width: 9px; height: 9px; border-radius: 2px; display: inline-block; margin-right: 0.35rem; }
+  .acciones { display: flex; gap: 0.75rem; margin-top: 0.5rem; font-size: 0.85rem; }
+  .enlace { background: none; border: 0; padding: 0; color: var(--azul); text-decoration: underline; cursor: pointer; font: inherit; }
+
+  ol.ranking { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
+  .fila {
+    display: grid; grid-template-columns: 2.2rem 1fr auto; gap: 0.75rem; align-items: center;
+    background: var(--papel); border: 1px solid var(--linea); border-radius: var(--radio);
+    padding: 0.75rem 1rem; cursor: pointer; text-align: left; width: 100%; font: inherit; color: inherit;
   }
   .fila:hover, .fila:focus-visible { border-color: var(--tinta); outline: none; }
   .pos { color: var(--suave); font-variant-numeric: tabular-nums; }
   .nombre { font-weight: 650; }
   .cargo { color: var(--suave); font-size: 0.85rem; }
-  .barra { display: block; height: 4px; background: var(--linea); border-radius: 2px; margin-top: 0.4rem; overflow: hidden; }
-  .barra i { display: block; height: 100%; background: var(--acento); }
+  .apilada { display: flex; gap: 2px; height: 5px; margin-top: 0.4rem; }
+  .apilada i { display: block; height: 100%; border-radius: 2px; }
   .monto { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; font-size: clamp(0.95rem, 2.4vw, 1.1rem); }
   .vacio { text-align: center; color: var(--suave); padding: 3rem 1rem; }
-  dialog {
-    border: 0;
-    border-radius: var(--radio);
-    padding: 0;
-    width: min(760px, 94vw);
-    max-height: 90vh;
-  }
+
+  dialog { border: 0; border-radius: var(--radio); padding: 0; width: min(780px, 94vw); max-height: 90vh; }
   dialog::backdrop { background: rgb(22 24 29 / 0.6); }
   .ficha { padding: clamp(1rem, 4vw, 2rem); }
   .ficha h2 { margin: 0; font-size: clamp(1.3rem, 4vw, 1.8rem); }
   .cerrar { float: right; border: 0; background: none; font-size: 1.6rem; cursor: pointer; line-height: 1; }
   .categorias { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.75rem; margin: 1rem 0; }
-  .categorias div { background: var(--fondo); border-radius: 8px; padding: 0.6rem 0.8rem; }
+  .categorias div { background: var(--fondo); border-radius: 8px; padding: 0.6rem 0.8rem; border-left: 4px solid var(--linea); }
   .categorias b { display: block; font-variant-numeric: tabular-nums; }
   table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
   th, td { text-align: left; padding: 0.45rem 0.4rem; border-bottom: 1px solid var(--linea); vertical-align: top; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
   td.fecha { white-space: nowrap; }
-  td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
   a { color: var(--azul); }
   footer { color: var(--suave); font-size: 0.8rem; padding: 2rem var(--esp); text-align: center; }
+  .oculto { display: none; }
 </style>
 </head>
 <body>
 <header>
   <div class="contenedor">
     <h1>¿Cuánto te cuestan <span>tus políticos?</span></h1>
-    <p class="bajada">Lo que el Estado paraguayo asigna a cada senador, diputado y autoridad del Ejecutivo. Cada monto con su fuente oficial.</p>
+    <p class="bajada">Lo que el Estado paraguayo asigna a cada senador, diputado y autoridad del Ejecutivo: sueldo, viáticos y personal de su despacho. Cada monto con su fuente oficial.</p>
+
+    <div class="hoy" id="hoy" aria-live="off">
+      <small>Todos juntos te cuestan, por día</small>
+      <span class="grande" id="porDia">—</span>
+      <span class="vivo" id="vivo"></span>
+      <div class="nota" id="notaHoy"></div>
+    </div>
+
     <div class="resumen" id="resumen"></div>
   </div>
 </header>
 
 <main class="contenedor">
   <p class="aviso" id="aviso">Cargando datos…</p>
-  <div class="controles" role="toolbar" aria-label="Filtrar">
+
+  <div class="controles" role="toolbar" aria-label="Filtros">
     <button class="filtro" data-filtro="todos" aria-pressed="true">Todos</button>
     <button class="filtro" data-filtro="Senador/a" aria-pressed="false">Senado</button>
     <button class="filtro" data-filtro="Diputado/a" aria-pressed="false">Diputados</button>
     <button class="filtro" data-filtro="ejecutivo" aria-pressed="false">Ejecutivo</button>
+    <select id="anho" aria-label="Año"><option value="">Todos los años</option></select>
+    <select id="mes" aria-label="Mes"><option value="">Todos los meses</option></select>
     <input type="search" id="buscar" placeholder="Buscar por nombre…" aria-label="Buscar por nombre">
   </div>
-  <ol id="lista"></ol>
+
+  <section class="tarjeta" aria-labelledby="tituloGrafico">
+    <h2 id="tituloGrafico">Costo por mes</h2>
+    <p class="sub" id="subGrafico"></p>
+    <div class="leyenda" id="leyenda"></div>
+    <div class="grafico" id="grafico"></div>
+    <div class="acciones">
+      <button class="enlace" id="verTabla" aria-expanded="false">Ver como tabla</button>
+      <button class="enlace oculto" id="quitarMes">Quitar filtro de mes</button>
+    </div>
+    <div class="oculto" id="tablaGrafico"></div>
+  </section>
+
+  <section aria-labelledby="tituloRanking">
+    <h2 id="tituloRanking" style="font-size:1.05rem;margin:0 0 0.75rem">Quién cuesta más <span class="cargo" id="periodoRanking"></span></h2>
+    <ol class="ranking" id="lista"></ol>
+  </section>
 </main>
 
 <dialog id="ficha"><div class="ficha" id="fichaContenido"></div></dialog>
 
 <footer>
-  Datos de fuentes oficiales (Ley 5189/14, Ley 5282/14 y portales de cada institución). Código abierto: CostoPolitico.
+  Datos de fuentes oficiales: nómina de la SFP (Ley 5189/14), Cámara de Senadores, Cámara de Diputados y SILpy.
+  El personal de despacho incluye solo a quienes la nómina asigna expresamente a un legislador. Código abierto: CostoPolitico.
 </footer>
 
 <script>
-  const CATEGORIAS = {
-    remuneracion: "Sueldo y remuneraciones",
-    viatico: "Viáticos",
-    pasaje: "Pasajes",
-    asesores: "Asesores",
-    otros: "Otros"
-  };
+  const CATEGORIAS = [
+    { id: "remuneracion", nombre: "Sueldo y dietas", color: "var(--s-remuneracion)" },
+    { id: "viatico", nombre: "Viáticos", color: "var(--s-viatico)" },
+    { id: "asesores", nombre: "Personal del despacho", color: "var(--s-asesores)" },
+  ];
+  const NOMBRE_CAT = Object.fromEntries(CATEGORIAS.map(c => [c.id, c.nombre]));
+  const COLOR_CAT = Object.fromEntries(CATEGORIAS.map(c => [c.id, c.color]));
+  const MESES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+  const MESES_C = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+
   const gs = n => "₲ " + Math.round(n).toLocaleString("es-PY");
+  const corto = n => n >= 1e9 ? "₲ " + (n / 1e9).toLocaleString("es-PY", { maximumFractionDigits: 1 }) + " mil M"
+                   : n >= 1e6 ? "₲ " + Math.round(n / 1e6).toLocaleString("es-PY") + " M" : gs(n);
   const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const fecha = iso => iso ? iso.split("-").reverse().join("/") : "";
   const sinTildes = s => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  const nombreMes = p => { const [a, m] = p.split("-"); return `${MESES[+m - 1]} ${a}`; };
 
   let datos = { personas: [] };
-  let filtro = "todos";
+  const estado = { filtro: "todos", anho: "", mes: "", q: "" };
 
-  function filtradas() {
-    const q = sinTildes(document.getElementById("buscar").value.trim());
-    return datos.personas
-      .filter(p => filtro === "todos" || p.cargo === filtro || p.poder === filtro)
-      .filter(p => !q || sinTildes(p.nombre).includes(q))
-      .sort((a, b) => b.total - a.total);
+  // ---------- filtros ----------
+  const enGrupo = p => estado.filtro === "todos" || p.cargo.startsWith(estado.filtro) || p.poder === estado.filtro;
+  const enBusqueda = p => !estado.q || sinTildes(p.nombre).includes(estado.q);
+  const enPeriodo = g => {
+    const [a, m] = g.periodo.split("-");
+    return (!estado.anho || a === estado.anho) && (!estado.mes || m === estado.mes);
+  };
+  function totalesDe(p, filtrarPeriodo = true) {
+    const t = { total: 0 };
+    for (const g of p.gastos) {
+      if (filtrarPeriodo && !enPeriodo(g)) continue;
+      t[g.categoria] = (t[g.categoria] || 0) + g.monto;
+      t.total += g.monto;
+    }
+    return t;
   }
 
-  function pintar() {
+  // ---------- contador diario (siempre todos, sin filtros) ----------
+  function mesDeReferencia() {
+    // El último mes con datos de sueldo "completos": al menos el 90 % de las personas del mes con más registros.
+    const conSueldo = {};
+    for (const p of datos.personas) for (const g of p.gastos)
+      if (g.categoria === "remuneracion") (conSueldo[g.periodo] ||= new Set()).add(p.id);
+    const meses = Object.entries(conSueldo).map(([m, s]) => [m, s.size]).sort();
+    if (!meses.length) return null;
+    const max = Math.max(...meses.map(x => x[1]));
+    return meses.filter(x => x[1] >= 0.9 * max).pop()[0];
+  }
+  let porSegundo = 0;
+  function contador() {
+    const ref = mesDeReferencia();
+    if (!ref) { document.getElementById("hoy").classList.add("oculto"); return; }
+    let total = 0;
+    for (const p of datos.personas) for (const g of p.gastos) if (g.periodo === ref) total += g.monto;
+    const [a, m] = ref.split("-").map(Number);
+    const dias = new Date(a, m, 0).getDate();
+    const porDia = total / dias;
+    porSegundo = porDia / 86400;
+    document.getElementById("porDia").textContent = gs(porDia);
+    document.getElementById("notaHoy").textContent =
+      `Estimado con el último mes con datos completos (${nombreMes(ref)}: ${gs(total)} en ${dias} días). ` +
+      `Incluye sueldos, viáticos y personal de despacho identificado de las ${datos.personas.length} autoridades.`;
+    const tic = () => {
+      const ahora = new Date();
+      const s = (ahora - new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate())) / 1000;
+      document.getElementById("vivo").innerHTML = `Desde las 00:00 de hoy ya van <span style="white-space:nowrap">${gs(s * porSegundo)}</span>`;
+    };
+    tic();
+    setInterval(tic, 500);
+  }
+
+  // ---------- gráfico mensual apilado ----------
+  function serieMensual() {
+    const porMes = {};
+    for (const p of datos.personas) {
+      if (!enGrupo(p) || !enBusqueda(p)) continue;
+      for (const g of p.gastos) {
+        if (!/^\d{4}-\d{2}$/.test(g.periodo)) continue;
+        if (estado.anho && !g.periodo.startsWith(estado.anho)) continue;
+        const m = (porMes[g.periodo] ||= { periodo: g.periodo, total: 0 });
+        m[g.categoria] = (m[g.categoria] || 0) + g.monto;
+        m.total += g.monto;
+      }
+    }
+    return Object.values(porMes).sort((a, b) => a.periodo.localeCompare(b.periodo));
+  }
+  function escala(max) {
+    // Paso "redondo" para la grilla: 1, 2 o 5 × 10^n.
+    const crudo = max / 4, pot = 10 ** Math.floor(Math.log10(crudo || 1));
+    const paso = [1, 2, 5, 10].map(k => k * pot).find(p => p >= crudo);
+    return { paso, tope: Math.ceil(max / paso) * paso || paso };
+  }
+  function pintarGrafico() {
+    const serie = serieMensual();
+    const cont = document.getElementById("grafico");
+    document.getElementById("leyenda").innerHTML = CATEGORIAS.map(c =>
+      `<span><i style="background:${c.color}"></i>${c.nombre}</span>`).join("");
+    if (!serie.length) { cont.innerHTML = `<p class="vacio">Sin datos para este filtro.</p>`; document.getElementById("tablaGrafico").innerHTML = ""; return; }
+
+    const W = 1000, H = 300, iz = 64, de = 8, ar = 12, ab = 34;
+    const ancho = (W - iz - de) / serie.length;
+    const barra = Math.max(2, Math.min(36, ancho * 0.7));
+    const { paso, tope } = escala(Math.max(...serie.map(s => s.total)));
+    const y = v => ar + (H - ar - ab) * (1 - v / tope);
+    let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Costo mensual por categoría">`;
+    for (let v = 0; v <= tope + 1; v += paso) {
+      svg += `<line x1="${iz}" x2="${W - de}" y1="${y(v)}" y2="${y(v)}" stroke="var(--grilla)" stroke-width="1"/>` +
+             `<text x="${iz - 8}" y="${y(v) + 4}" text-anchor="end" font-size="12" fill="var(--suave)">${corto(v)}</text>`;
+    }
+    const cadaEtiqueta = Math.ceil(serie.length / 12);
+    serie.forEach((s, i) => {
+      const cx = iz + ancho * i + ancho / 2, x0 = cx - barra / 2;
+      const tenue = estado.mes && s.periodo.slice(5) !== estado.mes;
+      let base = y(0), segs = "";
+      const presentes = CATEGORIAS.filter(c => s[c.id] > 0);
+      presentes.forEach((c, k) => {
+        const h = y(0) - y(s[c.id]);
+        const gap = k < presentes.length - 1 ? 2 : 0; // separación de 2px entre segmentos
+        const alto = Math.max(0, h - gap);
+        const top = base - h;
+        const esUltimo = k === presentes.length - 1;
+        const r = esUltimo ? Math.min(4, barra / 2, alto) : 0;
+        // segmento superior con extremo redondeado (4px); los demás rectos
+        segs += esUltimo && r > 0
+          ? `<path class="dato-r" fill="${c.color}" d="M${x0},${base} V${top + r} Q${x0},${top} ${x0 + r},${top} H${x0 + barra - r} Q${x0 + barra},${top} ${x0 + barra},${top + r} V${base} Z"/>`
+          : `<rect class="dato-r" x="${x0}" y="${top + gap}" width="${barra}" height="${alto}" fill="${c.color}"/>`;
+        base = top;
+      });
+      const [a, m] = s.periodo.split("-");
+      const etiqueta = i % cadaEtiqueta === 0
+        ? `<text x="${cx}" y="${H - ab + 16}" text-anchor="middle" font-size="12" fill="var(--suave)">${MESES_C[+m - 1]}</text>` +
+          (m === "01" || i === 0 ? `<text x="${cx}" y="${H - ab + 30}" text-anchor="middle" font-size="11" fill="var(--suave)">${a}</text>` : "")
+        : "";
+      svg += `<g class="barra${tenue ? " tenue" : ""}" data-i="${i}" tabindex="0" role="button" aria-label="${nombreMes(s.periodo)}: ${gs(s.total)}">` +
+             `<rect x="${iz + ancho * i}" y="${ar}" width="${ancho}" height="${H - ar - ab}" fill="transparent"/>${segs}</g>${etiqueta}`;
+    });
+    svg += `<line x1="${iz}" x2="${W - de}" y1="${y(0)}" y2="${y(0)}" stroke="var(--suave)" stroke-width="1"/></svg>`;
+    cont.innerHTML = svg + `<div class="tooltip oculto" id="tip"></div>`;
+
+    const tip = document.getElementById("tip");
+    const mostrar = (g, ev) => {
+      const s = serie[+g.dataset.i];
+      tip.innerHTML = `<b>${nombreMes(s.periodo)}</b> · ${gs(s.total)}<br>` +
+        CATEGORIAS.filter(c => s[c.id]).map(c => `<i style="background:${c.color}"></i>${c.nombre}: ${gs(s[c.id])}`).join("<br>");
+      const caja = cont.getBoundingClientRect(), b = g.getBoundingClientRect();
+      tip.style.left = Math.min(Math.max(b.left + b.width / 2 - caja.left, 90), caja.width - 90) + "px";
+      tip.style.top = (b.top - caja.top + 10) + "px";
+      tip.classList.remove("oculto");
+    };
+    cont.querySelectorAll(".barra").forEach(g => {
+      g.addEventListener("mouseenter", e => mostrar(g, e));
+      g.addEventListener("focus", e => mostrar(g, e));
+      g.addEventListener("mouseleave", () => tip.classList.add("oculto"));
+      g.addEventListener("blur", () => tip.classList.add("oculto"));
+      const elegir = () => {
+        const [a, m] = serie[+g.dataset.i].periodo.split("-");
+        estado.anho = a; estado.mes = m;
+        sincronizarSelects(); pintarTodo();
+      };
+      g.addEventListener("click", elegir);
+      g.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); elegir(); } });
+    });
+
+    document.getElementById("tablaGrafico").innerHTML =
+      `<table><thead><tr><th>Mes</th>${CATEGORIAS.map(c => `<th class="num">${c.nombre}</th>`).join("")}<th class="num">Total</th></tr></thead><tbody>` +
+      serie.map(s => `<tr><td>${nombreMes(s.periodo)}</td>${CATEGORIAS.map(c => `<td class="num">${s[c.id] ? gs(s[c.id]) : "—"}</td>`).join("")}<td class="num"><b>${gs(s.total)}</b></td></tr>`).join("") +
+      `</tbody></table>`;
+    const grupo = { todos: "todas las autoridades", "Senador/a": "el Senado", "Diputado/a": "Diputados", ejecutivo: "el Ejecutivo" }[estado.filtro];
+    document.getElementById("subGrafico").textContent =
+      `Suma mensual de ${grupo}${estado.q ? " (búsqueda: «" + estado.q + "»)" : ""}${estado.anho ? " en " + estado.anho : ""}. Tocá una barra para filtrar ese mes.`;
+  }
+
+  // ---------- ranking ----------
+  function pintarRanking() {
     const lista = document.getElementById("lista");
-    const ps = filtradas();
+    const ps = datos.personas.filter(p => enGrupo(p) && enBusqueda(p))
+      .map(p => ({ p, t: totalesDe(p) })).filter(x => x.t.total > 0)
+      .sort((a, b) => b.t.total - a.t.total);
+    const per = estado.mes ? nombreMes(`${estado.anho || "?"}-${estado.mes}`) : estado.anho || "todo el período";
+    document.getElementById("periodoRanking").textContent = `· ${per}`;
     if (!ps.length) {
-      lista.innerHTML = `<li class="vacio">${datos.personas.length ? "Sin resultados para esa búsqueda." : "Todavía no hay datos cargados."}</li>`;
+      lista.innerHTML = `<li class="vacio">${datos.personas.length ? "Sin datos para este filtro." : "Todavía no hay datos cargados."}</li>`;
       return;
     }
-    const max = ps[0].total || 1;
-    lista.innerHTML = ps.map((p, i) => `
+    const max = ps[0].t.total || 1;
+    lista.innerHTML = ps.map(({ p, t }, i) => `
       <li><button class="fila" data-id="${p.id}">
         <span class="pos">${i + 1}</span>
         <span>
           <span class="nombre">${esc(p.nombre)}</span><br>
-          <span class="cargo">${esc(p.cargo)} · ${esc(p.periodo_desde ?? "")}${p.periodo_hasta && p.periodo_hasta !== p.periodo_desde ? " a " + esc(p.periodo_hasta) : ""}</span>
-          <span class="barra"><i style="width:${(p.total / max * 100).toFixed(1)}%"></i></span>
+          <span class="cargo">${esc(p.cargo)}${p.partido ? " · " + esc(p.partido) : ""}</span>
+          <span class="apilada" style="width:${(t.total / max * 100).toFixed(1)}%">${CATEGORIAS.filter(c => t[c.id]).map(c =>
+            `<i style="flex:${t[c.id]};background:${c.color}" title="${c.nombre}: ${gs(t[c.id])}"></i>`).join("")}</span>
         </span>
-        <span class="monto">${gs(p.total)}</span>
+        <span class="monto">${gs(t.total)}</span>
       </button></li>`).join("");
   }
 
+  // ---------- resumen ----------
+  function pintarResumen() {
+    let tot = 0, leg = 0, eje = 0, n = 0;
+    for (const p of datos.personas) {
+      if (!enBusqueda(p)) continue;
+      const t = totalesDe(p).total;
+      if (!t) continue;
+      n++; tot += t; if (p.poder === "legislativo") leg += t; else eje += t;
+    }
+    const per = estado.mes ? nombreMes(`${estado.anho}-${estado.mes}`) : estado.anho || "todo el período";
+    document.getElementById("resumen").innerHTML = `
+      <div class="dato"><b>${gs(tot)}</b><small>total · ${esc(per)}</small></div>
+      <div class="dato"><b>${gs(leg)}</b><small>Congreso</small></div>
+      <div class="dato"><b>${eje ? gs(eje) : "sin datos"}</b><small>Ejecutivo</small></div>
+      <div class="dato"><b>${n}</b><small>autoridades con gastos</small></div>`;
+  }
+
+  // ---------- ficha ----------
   function abrir(id) {
     const p = datos.personas.find(x => x.id === id);
     if (!p) return;
-    const cats = Object.entries(p.totales)
-      .map(([k, v]) => `<div><small>${esc(CATEGORIAS[k] ?? k)}</small><b>${gs(v)}</b></div>`).join("");
-    const filas = p.gastos.map(g => `
+    const gastos = p.gastos.filter(enPeriodo);
+    const t = totalesDe(p);
+    const cats = CATEGORIAS.filter(c => t[c.id]).map(c =>
+      `<div style="border-left-color:${c.color}"><small>${c.nombre}</small><b>${gs(t[c.id])}</b></div>`).join("");
+    const filas = gastos.map(g => `
       <tr>
         <td class="fecha">${fecha(g.fecha_inicio) || esc(g.periodo)}</td>
         <td>${esc(g.concepto)}<br><small>${esc(g.detalle ?? "")}</small></td>
         <td class="num">${gs(g.monto)}</td>
         <td><a href="${esc(g.fuente_url)}" target="_blank" rel="noopener" title="${esc(g.fuente_nombre)}">Fuente</a></td>
       </tr>`).join("");
+    const per = estado.mes ? nombreMes(`${estado.anho}-${estado.mes}`) : estado.anho || "todo el período";
     document.getElementById("fichaContenido").innerHTML = `
       <button class="cerrar" aria-label="Cerrar" onclick="document.getElementById('ficha').close()">×</button>
-      <small>${esc(p.cargo)} · ${esc(p.institucion)}</small>
+      <small>${esc(p.cargo)} · ${esc(p.institucion)}${p.partido ? " · " + esc(p.partido) : ""}</small>
       <h2>${esc(p.nombre)}</h2>
-      <p class="monto">${gs(p.total)} <small class="cargo">(${esc(p.periodo_desde ?? "")} a ${esc(p.periodo_hasta ?? "")})</small></p>
+      <p class="monto">${gs(t.total)} <small class="cargo">(${esc(per)})</small></p>
       <div class="categorias">${cats}</div>
-      <table><thead><tr><th>Fecha</th><th>Concepto</th><th>Monto</th><th></th></tr></thead><tbody>${filas}</tbody></table>`;
+      <table><thead><tr><th>Fecha</th><th>Concepto</th><th class="num">Monto</th><th></th></tr></thead><tbody>${filas || `<tr><td colspan="4" class="vacio">Sin gastos en este período.</td></tr>`}</tbody></table>`;
     document.getElementById("ficha").showModal();
   }
 
-  function resumen() {
-    const suma = (fn) => datos.personas.filter(fn).reduce((t, p) => t + p.total, 0);
-    const n = datos.personas.length;
-    document.getElementById("resumen").innerHTML = n ? `
-      <div class="dato"><b>${gs(suma(() => true))}</b><small>total registrado</small></div>
-      <div class="dato"><b>${gs(suma(p => p.poder === "legislativo"))}</b><small>Congreso</small></div>
-      <div class="dato"><b>${datos.personas.some(p => p.poder === "ejecutivo" && p.total) ? gs(suma(p => p.poder === "ejecutivo")) : "sin datos aún"}</b><small>Ejecutivo</small></div>
-      <div class="dato"><b>${n}</b><small>autoridades</small></div>` : "";
+  // ---------- controles ----------
+  function llenarSelects() {
+    const periodos = new Set();
+    for (const p of datos.personas) for (const g of p.gastos) if (/^\d{4}-\d{2}$/.test(g.periodo)) periodos.add(g.periodo);
+    const anhos = [...new Set([...periodos].map(p => p.slice(0, 4)))].sort().reverse();
+    document.getElementById("anho").innerHTML = `<option value="">Todos los años</option>` + anhos.map(a => `<option>${a}</option>`).join("");
+    document.getElementById("mes").innerHTML = `<option value="">Todos los meses</option>` +
+      MESES.map((m, i) => `<option value="${String(i + 1).padStart(2, "0")}">${m[0].toUpperCase() + m.slice(1)}</option>`).join("");
   }
+  function sincronizarSelects() {
+    document.getElementById("anho").value = estado.anho;
+    document.getElementById("mes").value = estado.mes;
+    document.getElementById("quitarMes").classList.toggle("oculto", !estado.mes);
+  }
+  function pintarTodo() { pintarResumen(); pintarGrafico(); pintarRanking(); sincronizarSelects(); }
 
   document.querySelectorAll(".filtro").forEach(b => b.addEventListener("click", () => {
-    filtro = b.dataset.filtro;
+    estado.filtro = b.dataset.filtro;
     document.querySelectorAll(".filtro").forEach(x => x.setAttribute("aria-pressed", x === b));
-    pintar();
+    pintarTodo();
   }));
-  document.getElementById("buscar").addEventListener("input", pintar);
+  document.getElementById("anho").addEventListener("change", e => { estado.anho = e.target.value; pintarTodo(); });
+  document.getElementById("mes").addEventListener("change", e => { estado.mes = e.target.value; pintarTodo(); });
+  document.getElementById("buscar").addEventListener("input", e => { estado.q = sinTildes(e.target.value.trim()); pintarTodo(); });
+  document.getElementById("quitarMes").addEventListener("click", () => { estado.mes = ""; pintarTodo(); });
+  document.getElementById("verTabla").addEventListener("click", e => {
+    const t = document.getElementById("tablaGrafico");
+    const abierta = t.classList.toggle("oculto") === false;
+    e.target.setAttribute("aria-expanded", abierta);
+    e.target.textContent = abierta ? "Ocultar tabla" : "Ver como tabla";
+  });
   document.getElementById("lista").addEventListener("click", e => {
     const b = e.target.closest(".fila");
     if (b) abrir(Number(b.dataset.id));
@@ -242,14 +513,16 @@
     .then(d => {
       datos = d;
       const hoy = new Date(d.generado_en).toLocaleDateString("es-PY", { day: "numeric", month: "long", year: "numeric" });
-      const incluye = (d.cobertura || []).map(c => `${CATEGORIAS[c.categoria] ?? c.categoria} (${c.fuente.split(" — ")[0]})`).join("; ");
-      document.getElementById("aviso").textContent = `${d.aviso}${incluye ? " Incluye por ahora: " + incluye + "." : ""} Actualizado al ${hoy}.`;
-      resumen();
-      pintar();
+      const incluye = (d.cobertura || []).map(c => `${NOMBRE_CAT[c.categoria] ?? c.categoria} (${c.fuente.split(" — ")[0]}, ${c.desde} a ${c.hasta})`).join("; ");
+      document.getElementById("aviso").textContent = `${d.aviso}${incluye ? " Incluye: " + incluye + "." : ""} Actualizado al ${hoy}.`;
+      llenarSelects();
+      contador();
+      pintarTodo();
     })
     .catch(() => {
       document.getElementById("aviso").textContent = "Todavía no hay datos publicados. Ejecutá «python -m costopolitico exportar» para generar data.json.";
-      pintar();
+      document.getElementById("hoy").classList.add("oculto");
+      pintarTodo();
     });
 </script>
 </body>

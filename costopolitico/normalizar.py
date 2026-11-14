@@ -23,9 +23,13 @@ def monto(texto) -> int | None:
     t = re.sub(r"[^\d.,-]", "", t)
     if not t or not re.search(r"\d", t):
         return None
-    # Formato paraguayo: punto = miles, coma = decimales.
+    # Formato paraguayo: punto = miles, coma = decimales ("5.073.097", "1.234,50").
+    # Pero un punto seguido de 1 o 2 dígitos al final es decimal ("8000000.0", "123.5"):
+    # los grupos de miles siempre tienen 3 dígitos.
     if "," in t:
         t = t.split(",")[0]
+    elif re.fullmatch(r"-?\d+\.\d{1,2}", t):
+        t = t.split(".")[0]
     t = t.replace(".", "")
     try:
         return int(t)

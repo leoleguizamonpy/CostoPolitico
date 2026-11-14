@@ -174,3 +174,31 @@ def test_pendientes_con_sugerencias(con, tmp_path, capsys):
     texto = ruta.read_text(encoding="utf-8")
     assert "Anna Pruebba Gomes Torres" in texto and "Ana María Prueba Gómez" in texto
     assert "Pedro Chofer" in capsys.readouterr().out
+
+
+def test_personal_de_despacho_se_asigna_al_legislador(con, tmp_path):
+    senado.importar_nomina(con, NOMINA)
+    csv = tmp_path / "n.csv"
+    csv.write_text(
+        "anho,mes,descripcion_entidad,documento,nombres,apellidos,cargo,funcion,objeto_gasto,concepto,presupuestado,devengado\n"
+        # el asesor aparece ANTES que la senadora en el archivo: igual se asigna
+        "2026,4,CAMARA DE SENADORES,5000001,PEDRO,ASESOR UNO,HONORARIOS PROFESIONALES,ASESOR DEL DESPACHO DEL SENADOR ANA PRUEBA,145,HONORARIOS,8000000,8000000\n"
+        "2026,4,CAMARA DE SENADORES,5000002,LUISA,SECRETARIA,JORNALES,DESPACHO DEL SENADOR ANA PRUEBA-SERVICIOS PERSONALES,144,JORNALES,4000000,4000000\n"
+        "2026,4,CAMARA DE SENADORES,2000001,ANA MARIA,PRUEBA GOMEZ,MIEMBROS,SENADOR NACIONAL,112,DIETA,32606840,32606840\n"
+        "2026,4,CAMARA DE SENADORES,5000003,JOSE,SIN DUEÑO,JORNALES,DESPACHO DEL SENADOR DESCONOCIDO TOTAL,144,JORNALES,3000000,3000000\n"
+        "2026,4,CAMARA DE SENADORES,5000004,RITA,PRESIDENCIA,JORNALES,PRESIDENCIA DE LA HONORABLE CAMARA DE SENADORES,144,JORNALES,5000000,5000000\n",
+        encoding="utf-8")
+    r = sfp_nomina.importar(con, csv)
+    assert r["personal_despacho"] == 2 and r["personal_sin_asignar"] == 1
+    ana = con.execute("SELECT id FROM personas WHERE silpy_id='900001'").fetchone()["id"]
+    tot = dict(con.execute("SELECT categoria, SUM(monto) FROM gastos WHERE persona_id=? GROUP BY categoria", (ana,)).fetchall())
+    assert tot == {"remuneracion": 32_606_840, "asesores": 12_000_000}
+    # En la exportación se ve agregado por mes, con cantidad de personas y sin nombres.
+    from costopolitico.exportar import exportar
+    import json
+    out = tmp_path / "d.json"
+    exportar(con, out)
+    p = next(x for x in json.loads(out.read_text(encoding="utf-8"))["personas"] if x["id"] == ana)
+    g = next(x for x in p["gastos"] if x["categoria"] == "asesores")
+    assert g["monto"] == 12_000_000 and "2 personas" in g["concepto"]
+    assert "ASESOR UNO" not in json.dumps(p).upper()

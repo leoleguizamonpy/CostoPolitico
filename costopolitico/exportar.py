@@ -13,22 +13,32 @@ MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto
 
 
 def _agrupar_remuneraciones(gastos: list[dict]) -> list[dict]:
-    """Un renglón por mes para las remuneraciones (dieta + representación + …), con el
-    desglose en el detalle. Los viáticos quedan uno por viaje."""
+    """Un renglón por mes para remuneraciones (dieta + representación + …) y para el personal
+    del despacho (cantidad de personas y desglose por cargo, sin nombres). Los viáticos quedan
+    uno por viaje."""
     otros, por_mes = [], {}
     for g in gastos:
-        if g["categoria"] != "remuneracion" or g["periodo"] == "s/f":
+        if g["categoria"] not in ("remuneracion", "asesores") or g["periodo"] == "s/f":
             otros.append(g)
             continue
-        m = por_mes.setdefault(g["periodo"], {**g, "monto": 0, "partes": {}})
+        m = por_mes.setdefault((g["categoria"], g["periodo"]), {**g, "monto": 0, "partes": {}, "refs": set()})
         m["monto"] += g["monto"]
-        m["partes"][g["concepto"]] = m["partes"].get(g["concepto"], 0) + g["monto"]
-    for periodo, m in por_mes.items():
+        clave = g["concepto"] if g["categoria"] == "remuneracion" else (g.get("detalle") or "").split(" · ")[0].title()
+        m["partes"][clave] = m["partes"].get(clave, 0) + g["monto"]
+        if g.get("referencia"):
+            m["refs"].add(g["referencia"])
+    for (categoria, periodo), m in por_mes.items():
         a, mm = periodo.split("-")
-        m["concepto"] = f"Remuneración de {MESES[int(mm) - 1]} {a}"
+        mes = f"{MESES[int(mm) - 1]} {a}"
+        n = len(m.pop("refs"))
+        m["concepto"] = (f"Remuneración de {mes}" if categoria == "remuneracion"
+                         else f"Personal del despacho de {mes}: {n} persona{'s' if n != 1 else ''}")
         m["detalle"] = " · ".join(f"{k}: ₲ {v:,}".replace(",", ".") for k, v in
                                   sorted(m.pop("partes").items(), key=lambda kv: -kv[1]))
+        m.pop("referencia", None)
         otros.append(m)
+    for g in otros:
+        g.pop("referencia", None)  # identificador interno: no se publica
     return sorted(otros, key=lambda g: (g.get("fecha_inicio") or g["periodo"]), reverse=True)
 
 
@@ -37,7 +47,7 @@ def exportar(con, salida: Path = SALIDA) -> dict:
     for p in con.execute("SELECT * FROM personas ORDER BY nombre_completo"):
         gastos = [dict(g) for g in con.execute(
             "SELECT categoria, concepto, monto, periodo, fecha_inicio, fecha_fin, detalle,"
-            " fuente_nombre, fuente_url, descargado_en FROM gastos WHERE persona_id = ?"
+            " fuente_nombre, fuente_url, descargado_en, referencia FROM gastos WHERE persona_id = ?"
             " ORDER BY COALESCE(fecha_inicio, periodo) DESC, monto DESC", (p["id"],))]
         gastos = _agrupar_remuneraciones(gastos)
         totales = {}
@@ -50,6 +60,7 @@ def exportar(con, salida: Path = SALIDA) -> dict:
             "cargo": p["cargo"],
             "poder": p["poder"],
             "institucion": p["institucion"],
+            "partido": p["partido"],
             "total": sum(totales.values()),
             "totales": totales,
             "periodo_desde": periodos[0] if periodos else None,

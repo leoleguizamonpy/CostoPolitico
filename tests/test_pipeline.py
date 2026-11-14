@@ -49,6 +49,10 @@ def test_normalizar():
     assert normalizar.monto("₲ 5.073.097") == 5073097
     assert normalizar.monto("Gs. 1.234,50") == 1234
     assert normalizar.monto("") is None
+    assert normalizar.monto("8000000.0") == 8000000      # decimal con punto, no miles
+    assert normalizar.monto("123.45") == 123
+    assert normalizar.monto("1.234") == 1234             # grupo de 3 dígitos: miles
+    assert normalizar.monto("7400000") == 7400000
     assert normalizar.rango_fechas("29/01/2025 AL 02/02/2025") == ("2025-01-29", "2025-02-02")
 
 

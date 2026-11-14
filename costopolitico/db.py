@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS gastos (
     fuente_nombre TEXT NOT NULL,
     fuente_url    TEXT NOT NULL,
     descargado_en TEXT NOT NULL,
+    referencia    TEXT,                   -- p.ej. identificador anónimo del asesor (para contar personas)
     huella        TEXT NOT NULL UNIQUE    -- evita duplicados al reimportar
 );
 CREATE INDEX IF NOT EXISTS ix_gastos_persona ON gastos(persona_id);
@@ -81,6 +82,9 @@ def conectar(ruta=None) -> sqlite3.Connection:
     con.row_factory = sqlite3.Row
     con.execute("PRAGMA foreign_keys = ON")
     con.executescript(ESQUEMA)
+    columnas = {c["name"] for c in con.execute("PRAGMA table_info(gastos)")}
+    if "referencia" not in columnas:  # bases creadas antes de esta columna
+        con.execute("ALTER TABLE gastos ADD COLUMN referencia TEXT")
     cargar_alias(con)
     return con
 

@@ -43,6 +43,16 @@ Relaciones Exteriores, donde "MINISTRO" es un rango diplomático (más de 240 re
 canciller no se puede identificar en la nómina** (casi todos los registros tienen función "NO
 DISPONIBLE"): queda pendiente de otra fuente.
 
+**Personal de despacho (asesores, secretarios, choferes).** En las cámaras, muchos funcionarios
+tienen una función que nombra al legislador: "DESPACHO DEL SENADOR DIONISIO AMARILLA", "PRESTA
+SERVICIOS EN EL DESPACHO LEGISLATIVO DE LA DIPUTADA …", "ENCARGADO DE DESPACHO LEGISLATIVO DE LA
+DIPUTADA … RESOLUCIÓN …". Su costo se asigna a ese legislador (categoría "Personal del despacho").
+En la web se muestra agregado por mes (cantidad de personas y desglose por cargo), sin nombres.
+En abril de 2026: 72 personas en despachos de senadores (₲ 477.589.479) y 83 en despachos de
+diputados (₲ 222.927.273). Es un **mínimo comprobable**: quien figura sin indicar a qué despacho
+sirve no se puede atribuir. Nombres que no cruzan (p.ej. "DESPACHO DEL SENADOR WALTER", cortado
+en la fuente) quedan en pendientes.
+
 La misma persona puede figurar con otro segundo apellido (de casada: "Valiente Cabrera" en la
 nómina, "Valiente de Rodríguez" en el Senado). Se unen por primer nombre + primer apellido dentro
 del mismo cargo, solo con un único candidato y nunca si tienen cédula o ID del SILpy distintos.

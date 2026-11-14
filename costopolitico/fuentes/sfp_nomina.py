@@ -21,6 +21,15 @@ FUENTE = "Nómina de funcionarios — datos abiertos SFP/VCHGO (Ley 5189/14)"
 URL_PORTAL = "https://datos.sfp.gov.py/data/funcionarios"
 
 _ENTIDADES = re.compile(r"C.MARA|PRESIDENCIA|MINISTERIO", re.IGNORECASE)
+_CAMARAS = re.compile(r"^CAMARA DE (SENADORES|DIPUTADOS)")
+# Función de los funcionarios de despacho, tal como aparece en la nómina (abril 2026):
+#   "DESPACHO DEL SENADOR DIONISIO AMARILLA", "ASESORA DEL DESPACHO DEL SENADOR SILVIO OVELAR",
+#   "PRESTA SERVICIOS EN EL DESPACHO LEGISLATIVO DE LA DIPUTADA BETTINA ROSMARY AGUILERA PANIAGUA",
+#   "ENCARGADO DE DESPACHO LEGISLATIVO DE LA DIPUTADA LEIDY GALEANO RESOLUCION N 3695 2025".
+# El nombre termina donde empieza un agregado ("SERVICIOS PERSONALES", "RESOLUCION…").
+_DESPACHO = re.compile(
+    r"DES?PACHO(?: LEGISLATIVO)? (?:DEL?|DE LA) (SENADORA?|DIPUTAD[OA])(?: NACIONAL)? "
+    r"([A-Z ]+?)(?= SERVICIOS| RESOLUCION| RES | N | NRO|$)")
 
 # Clasificador presupuestario (objeto de gasto) — nombres legibles de los más frecuentes.
 OBJETOS = {
@@ -97,8 +106,9 @@ def importar(con, ruta, fuente_url: str = URL_PORTAL) -> dict:
     lector = csv.DictReader(texto, delimiter=delimitador)
     col = _mapear_columnas(lector.fieldnames or [])
     descargado = normalizar.ahora()
-    stats = {"filas": 0, "politicos": 0, "gastos_nuevos": 0}
+    stats = {"filas": 0, "politicos": 0, "gastos_nuevos": 0, "personal_despacho": 0, "personal_sin_asignar": 0}
     repetidas: dict = {}
+    personal: list = []  # (cargo del legislador, nombre, fila) — se asignan al final, ya cargados todos
 
     def v(fila, clave):
         return (fila.get(col.get(clave, ""), "") or "").strip()
@@ -110,6 +120,9 @@ def importar(con, ruta, fuente_url: str = URL_PORTAL) -> dict:
             continue
         regla = personas.clasificar(v(fila, "entidad"), v(fila, "cargo"), v(fila, "funcion"))
         if not regla:
+            m = _DESPACHO.search(normalizar.nombre(v(fila, "funcion")))
+            if m and _CAMARAS.search(normalizar.nombre(v(fila, "entidad"))):
+                personal.append((m.group(1), m.group(2), {k: v(fila, k) for k in col}))
             continue
         nombre = f"{v(fila, 'nombres')} {v(fila, 'apellidos')}".strip()
         if personas.es_relleno(nombre):
@@ -146,9 +159,45 @@ def importar(con, ruta, fuente_url: str = URL_PORTAL) -> dict:
              descargado, normalizar.huella("sfp", pid, periodo, objeto, monto, n)),
         )
         stats["gastos_nuevos"] += cur.rowcount
+    _asignar_personal(con, personal, fuente_url, descargado, stats)
     con.commit()
     texto.close()
     return stats
+
+
+def _asignar_personal(con, personal, fuente_url, descargado, stats):
+    """Asigna a cada legislador el costo del personal de su despacho (asesores, secretarios,
+    choferes…), según la función declarada en la nómina. Se guarda agregado: en la web se ve
+    cuántas personas y cuánto cuestan por mes, no sus nombres."""
+    repetidas: dict = {}
+    for titulo, nombre_leg, f in personal:
+        monto = normalizar.monto(f.get("devengado"))
+        if not monto:
+            continue
+        cargos = ("Senador/a", "Senador/a vitalicio/a") if titulo.startswith("SENADOR") else ("Diputado/a",)
+        pid, metodo = personas.buscar_con_metodo(con, nombre_leg, cargos)
+        anho, mes = f.get("anho", ""), f.get("mes", "")
+        periodo = f"{int(anho):04d}-{int(mes):02d}" if anho.isdigit() and mes.isdigit() else "s/f"
+        ref = normalizar.huella("personal", f.get("documento") or f.get("nombres", "") + f.get("apellidos", ""))[:12]
+        if pid is None:
+            con.execute(
+                "INSERT OR IGNORE INTO sin_asignar (origen, nombre, monto, detalle, fuente_url, huella)"
+                " VALUES (?,?,?,?,?,?)",
+                ("personal_despacho", nombre_leg.title(), monto, f"{periodo} · {f.get('funcion', '')}"[:200],
+                 fuente_url, normalizar.huella("personal_sa", ref, periodo, f.get("objeto_gasto"), monto)))
+            stats["personal_sin_asignar"] += 1
+            continue
+        objeto = f.get("objeto_gasto", "")
+        clave = (pid, ref, periodo, objeto, monto)
+        repetidas[clave] = n = repetidas.get(clave, 0) + 1
+        detalle = " · ".join(x for x in (f.get("cargo") or "funcionario", f"objeto de gasto {objeto}" if objeto else "",
+                                          f"cruce {metodo}: «{nombre_leg.title()}»" if metodo in personas.METODOS_A_REVISAR else "") if x)
+        cur = con.execute(
+            "INSERT OR IGNORE INTO gastos (persona_id, categoria, concepto, monto, periodo, detalle,"
+            " fuente_nombre, fuente_url, descargado_en, referencia, huella) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            (pid, "asesores", "Personal del despacho", monto, periodo, detalle, FUENTE, fuente_url,
+             descargado, ref, normalizar.huella("personal", pid, ref, periodo, objeto, monto, n)))
+        stats["personal_despacho"] += cur.rowcount
 
 
 if __name__ == "__main__":
