@@ -8,12 +8,14 @@ git pull --ff-only --quiet || echo "aviso: no se pudo actualizar el código (se 
 
 FECHA=$(date +%Y-%m-%d)
 mkdir -p logs
-.venv/bin/python -m costopolitico actualizar --desde 2023 2>&1 | tee "logs/actualizar-$FECHA.log"
+.venv/bin/python -m costopolitico actualizar --desde 2023 2>&1 | tee "logs/actualizar-$FECHA.log" || echo "aviso: alguna fuente falló (ver log); se publica igual lo cargado"
 .venv/bin/python -m costopolitico pendientes > "logs/pendientes-$FECHA.txt" || true
+.venv/bin/python -m costopolitico controles | tee -a "logs/actualizar-$FECHA.log" || true
 
 # Publicar: copia atómica para que nadie vea un data.json a medio escribir.
 DESTINO=/var/www/costopolitico
 install -d "$DESTINO"
 cp web/index.html "$DESTINO/index.html.tmp" && mv "$DESTINO/index.html.tmp" "$DESTINO/index.html"
+cp web/metodologia.html "$DESTINO/metodologia.html.tmp" && mv "$DESTINO/metodologia.html.tmp" "$DESTINO/metodologia.html"
 cp web/data.json  "$DESTINO/data.json.tmp"  && mv "$DESTINO/data.json.tmp"  "$DESTINO/data.json"
 echo "publicado: $(date -Is)"

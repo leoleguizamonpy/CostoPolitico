@@ -77,6 +77,30 @@ python -m http.server -d web 8000       # ver en http://localhost:8000
 Conviene importar primero las nóminas (SFP y Senado): de ahí salen las personas a las que
 después se asignan los viáticos. Todo es idempotente: reimportar no duplica.
 
+## Verificar antes de publicar
+
+La app nombra a personas reales con montos de dinero público: antes de publicar (y después de
+cada cambio grande) conviene verificar.
+
+```bash
+python -m costopolitico controles                  # revisiones automáticas → data/verificacion/controles-FECHA.md
+python -m costopolitico pendientes --csv data/revision.csv   # lo que no se pudo asignar, con sugerencias
+python -m costopolitico muestra --n 60             # planilla con 60 gastos al azar → data/verificacion/
+```
+
+1. **Controles**: revisá el informe (remuneraciones atípicas, sueldos duplicados, devoluciones
+   raras, fechas imposibles, viajes publicados dos veces, meses incompletos).
+2. **Muestra**: abrí la planilla en Excel; para cada fila abrí `fuente_url`, buscá el monto y
+   completá `monto_en_fuente` y `coincide` (sí/no). La muestra sobrerrepresenta los cruces de
+   nombre no exactos, que son los de más riesgo.
+3. **Resultado**: `python -m costopolitico resultado-muestra "RUTA_DE_LA_PLANILLA"` da la tasa de
+   error con su intervalo de confianza del 95 %. Con `--publicar`, ese resultado aparece en la
+   página de metodología.
+
+Cada ficha de la web tiene **Reportar un error**, que abre un issue prellenado en este
+repositorio (etiqueta `error-de-datos`). La URL se cambia en `REPORTAR_URL`, dentro de
+`web/index.html`.
+
 ## Publicar en un VPS
 
 Todo está en `deploy/` (Ubuntu/Debian, nginx, systemd):

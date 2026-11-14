@@ -56,6 +56,11 @@ def _agrupar_remuneraciones(gastos: list[dict]) -> list[dict]:
     return sorted(otros, key=lambda g: (g.get("fecha_inicio") or g["periodo"]), reverse=True)
 
 
+def _verificacion():
+    ruta = RAIZ / "data" / "verificacion" / "ultima.json"
+    return json.loads(ruta.read_text(encoding="utf-8")) if ruta.exists() else None
+
+
 def exportar(con, salida: Path = SALIDA) -> dict:
     personas = []
     for p in con.execute("SELECT * FROM personas ORDER BY nombre_completo"):
@@ -94,6 +99,7 @@ def exportar(con, salida: Path = SALIDA) -> dict:
         "cobertura": [dict(c) for c in con.execute(
             "SELECT categoria, fuente_nombre AS fuente, MIN(periodo) AS desde, MAX(periodo) AS hasta,"
             " COUNT(*) AS registros FROM gastos GROUP BY categoria, fuente_nombre ORDER BY categoria")],
+        "verificacion": _verificacion(),
         "pendientes_revision": con.execute("SELECT COUNT(*) FROM sin_asignar").fetchone()[0],
     }
     salida.parent.mkdir(parents=True, exist_ok=True)

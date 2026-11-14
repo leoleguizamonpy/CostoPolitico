@@ -70,11 +70,15 @@ if ($script:fallas.Count -gt 0) {
     Write-Host "Copiá los mensajes de error de arriba para corregirlos. La web se abre igual con lo que se cargó."
 }
 
-# 4. Pendientes de revisión
+# 4. Controles automáticos de consistencia
+Paso "Controles automáticos (data\verificacion\)"
+Correr @("controles")
+
+# 5. Pendientes de revisión
 Paso "Pendientes de revisión (data\revision.csv)"
 Correr @("pendientes", "--csv", "data\revision.csv")
 
-# 5. Abrir la web
+# 6. Abrir la web
 Paso "Abriendo http://localhost:8000  (cerrá esta ventana para apagar el servidor)"
 Start-Process "http://localhost:8000"
 & $vpy -m http.server 8000 --directory web

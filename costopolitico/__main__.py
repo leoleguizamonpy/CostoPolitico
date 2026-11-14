@@ -8,6 +8,9 @@
   python -m costopolitico diputados [--desde 2023]
   python -m costopolitico actualizar [--desde 2023]   (todo lo automático + exportar)
   python -m costopolitico pendientes
+  python -m costopolitico controles                 (revisiones automáticas de consistencia)
+  python -m costopolitico muestra [--n 60]          (planilla para verificar a mano contra las fuentes)
+  python -m costopolitico resultado-muestra RUTA     (tasa de error de la muestra revisada)
   python -m costopolitico exportar
 """
 import argparse
@@ -84,6 +87,13 @@ def main():
     s = sub.add_parser("pendientes", help="listar lo que no se pudo asignar (con sugerencias)")
     s.add_argument("--csv", help="además, escribir un CSV para revisar (p.ej. data/revision.csv)")
     sub.add_parser("exportar", help="generar web/data.json")
+    sub.add_parser("controles", help="revisiones automáticas de consistencia (informe en data/verificacion/)")
+    s = sub.add_parser("muestra", help="muestra aleatoria para verificar a mano contra las fuentes")
+    s.add_argument("--n", type=int, default=60)
+    s.add_argument("--semilla", type=int, help="para repetir exactamente una muestra anterior")
+    s = sub.add_parser("resultado-muestra", help="tasa de error de una muestra ya revisada")
+    s.add_argument("ruta")
+    s.add_argument("--publicar", action="store_true", help="mostrar este resultado en la página de metodología")
 
     a = ap.parse_args()
     con = conectar(a.db)
@@ -125,6 +135,38 @@ def main():
         _pendientes(con, a.csv)
     elif a.cmd == "exportar":
         print(exportar(con))
+    elif a.cmd == "controles":
+        from .verificacion import controles, informe_controles
+        ruta = informe_controles(con)
+        r = controles(con)["resumen"]
+        print(f"Errores: {r.get('error', 0)} · Para revisar: {r.get('revisar', 0)} · Info: {r.get('info', 0)}")
+        print(f"Informe: {ruta}")
+    elif a.cmd == "muestra":
+        from .verificacion import muestra
+        ruta = muestra(con, n=a.n, semilla=a.semilla)
+        print(f"Planilla: {ruta}\n"
+              "Abrila en Excel. Para cada fila, abrí fuente_url, buscá el monto y completá "
+              "monto_en_fuente y coincide (sí/no). Después: python -m costopolitico resultado-muestra \"RUTA\"")
+    elif a.cmd == "resultado-muestra":
+        from .verificacion import resultado_muestra
+        r = resultado_muestra(a.ruta)
+        if not r["revisadas"]:
+            print("Todavía no hay filas revisadas (columna 'coincide').")
+        else:
+            bajo, alto = r["intervalo_95"]
+            print(f"Revisadas: {r['revisadas']} · Errores: {r['errores']} · Tasa de error: {r['tasa_error']:.1%}")
+            print(f"Con 95 % de confianza, la tasa real de error está entre {bajo:.1%} y {alto:.1%}.")
+            for d in r["detalle"]:
+                print("  -", d)
+            if a.publicar:
+                import json
+                from datetime import date
+                from .verificacion import CARPETA
+                CARPETA.mkdir(parents=True, exist_ok=True)
+                (CARPETA / "ultima.json").write_text(json.dumps({
+                    "fecha": f"{date.today():%d/%m/%Y}", "revisadas": r["revisadas"], "errores": r["errores"],
+                    "bajo": round(bajo, 4), "alto": round(alto, 4)}, ensure_ascii=False), encoding="utf-8")
+                print("Publicado: se verá en la página de metodología en la próxima exportación.")
 
 
 if __name__ == "__main__":

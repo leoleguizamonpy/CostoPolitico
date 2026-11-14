@@ -210,7 +210,7 @@
 </header>
 
 <main class="contenedor">
-  <p class="aviso" id="aviso">Cargando datos…</p>
+  <p class="aviso"><span id="aviso">Cargando datos…</span> <a href="metodologia.html">Cómo se arman estos datos y qué no incluyen →</a></p>
 
   <div class="controles" role="toolbar" aria-label="Filtros">
     <button class="filtro" data-filtro="todos" aria-pressed="true">Todos</button>
@@ -250,11 +250,19 @@
 <dialog id="ficha"><div class="ficha" id="fichaContenido"></div></dialog>
 
 <footer>
-  Datos de fuentes oficiales: nómina de la SFP (Ley 5189/14), Cámara de Senadores, Cámara de Diputados y SILpy.
+  <a href="metodologia.html">Metodología</a> · Datos de fuentes oficiales: nómina de la SFP (Ley 5189/14), Cámara de Senadores, Cámara de Diputados y SILpy.
   El personal de despacho incluye solo a quienes la nómina asigna expresamente a un legislador. Código abierto: CostoPolitico.
 </footer>
 
 <script>
+  // Dónde llegan los reportes de errores (un issue prellenado en el repositorio público).
+  const REPORTAR_URL = "https://github.com/leoleguizamonpy/CostoPolitico/issues/new";
+  function enlaceReporte(p, per) {
+    const titulo = `Error en datos: ${p.nombre} (${per})`;
+    const cuerpo = `**Persona:** ${p.nombre} — ${p.cargo}\n**Período que estaba viendo:** ${per}\n\n` +
+      `**¿Qué dato está mal?**\n\n\n**¿Cuál es el dato correcto y dónde figura? (enlace al documento oficial)**\n\n`;
+    return `${REPORTAR_URL}?title=${encodeURIComponent(titulo)}&body=${encodeURIComponent(cuerpo)}&labels=error-de-datos`;
+  }
   const CATEGORIAS = [
     { id: "remuneracion", nombre: "Sueldo y dietas", color: "var(--s-remuneracion)" },
     { id: "viatico", nombre: "Viáticos", color: "var(--s-viatico)" },
@@ -548,7 +556,10 @@
       <p style="margin:0.25rem 0 0">${afiliacion(p)}${p.bancada ? `<br><small class="cargo">Bancada: ${esc(p.bancada)}</small>` : ""}</p>
       <p class="monto">${gs(t.total)} <small class="cargo">(${esc(per)})</small></p>
       <div class="categorias">${cats}</div>
-      <table><thead><tr><th>Fecha</th><th>Concepto</th><th class="num">Monto</th><th></th></tr></thead><tbody>${filas || `<tr><td colspan="4" class="vacio">Sin gastos en este período.</td></tr>`}</tbody></table>`;
+      <table><thead><tr><th>Fecha</th><th>Concepto</th><th class="num">Monto</th><th></th></tr></thead><tbody>${filas || `<tr><td colspan="4" class="vacio">Sin gastos en este período.</td></tr>`}</tbody></table>
+      <p class="cargo" style="margin-top:1rem">¿Ves un dato que no coincide con su fuente?
+        <a href="${esc(enlaceReporte(p, per))}" target="_blank" rel="noopener">Reportar un error</a> ·
+        <a href="metodologia.html">Qué incluye esta ficha</a></p>`;
     document.getElementById("ficha").showModal();
   }
 
