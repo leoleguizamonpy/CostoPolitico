@@ -35,6 +35,15 @@ docs/fuentes.md        cada fuente: qué trae, formato, estado
 tests/                 pruebas con datos ficticios
 ```
 
+## Windows: todo de una
+
+1. Instalá Python 3.10+ desde https://www.python.org/downloads/ (marcá **Add python.exe to PATH**).
+2. Bajá el proyecto (Code → Download ZIP, o `git clone`) y descomprimilo.
+3. Doble clic en **`correr.bat`**. Instala todo, baja los datos (cámaras desde 2025, sueldos
+   desde enero de 2026), genera la web y la abre en http://localhost:8000.
+
+Carga completa 2023-2026 (horas, ~1,5 GB): en esa carpeta, `correr.bat -Completo`.
+
 ## Uso (en tu máquina o en el servidor)
 
 ```bash
