@@ -14,7 +14,7 @@ Lo que no tiene fuente no entra.
 
 | # | Fuente | Qué trae | Formato | Estado en el código |
 |---|---|---|---|---|
-| 1 | Nómina de funcionarios — portal de datos abiertos SFP/VCHGO (Ley 5189/14) · https://datos.sfp.gov.py/data/funcionarios · diccionario: https://datos.sfp.gov.py/def/funcionarios | Remuneración mensual de cada funcionario, incluidos cargos electivos, por objeto de gasto (111 sueldos, 113 gastos de representación, etc.) | CSV mensual (a veces ZIP) | ✅ `fuentes/sfp_nomina.py` |
+| 1 | Nómina de funcionarios — portal de datos abiertos SFP/VCHGO (Ley 5189/14) · listado: https://datos.sfp.gov.py/data/funcionarios/download · archivo: `https://datos.sfp.gov.py/data/funcionarios_{año}_{mes}.csv.zip` | Remuneración mensual de cada funcionario por objeto de gasto (112 dieta, 113 gastos de representación, 111 sueldo, 133 bonificaciones, 232 viáticos…). Se toma solo lo **devengado** | CSV mensual en ZIP, Latin-1, ~1 millón de filas | ✅ `fuentes/sfp_nomina.py` — descarga mensual automática (`sueldos`), lectura en streaming, registro de meses ya importados |
 | 2 | Cámara de Diputados — nómina alfabética (diputados.gov.py/diputados/nomina-alfabetica) + ficha de cada diputado en SILpy | Los 80 diputados, partido e ID del SILpy. La nómina trae "APELLIDOS NOMBRES" sin separar; el corte exacto sale de comparar con el nombre de la ficha del SILpy ("Nombres Apellidos"). Sin ficha (5 de 80 en nov. 2026), se estima con la convención de dos apellidos | HTML | ✅ `fuentes/diputados.py` |
 | 2b | Cámara de Diputados — "Viajes oficiales de misiones parlamentarias" (listado Ley 5189: diputados.gov.py/transparencia/ley-5189) | Por viaje: diputado/a o funcionario/a, resolución, destino, fechas, motivo, monto del viático | PDF mensual (Word, tabla con bordes) | ✅ `fuentes/diputados.py` + `fuentes/viaticos.py`. Se omiten los "INFORME DE VIAJES…" (informes narrativos sin montos) |
 | 3 | Cámara de Senadores — nómina alfabética (senado.gov.py/index.php/menu-senadores/sub-menu-nomina-alfabetica.html) | Los 45 senadores + vitalicios, con partido e ID del SILpy | HTML | ✅ `fuentes/senado.py` |
@@ -22,6 +22,32 @@ Lo que no tiene fuente no entra.
 | 4 | Contraloría General — datos abiertos de rendiciones de viáticos | Viáticos de todo el sector público | Datos abiertos | ⏳ por revisar |
 | 5 | DNCP — API de contrataciones (OCDS) · https://www.contrataciones.gov.py/datos/api/v3/doc/ | Compras y contratos por institución | API JSON | ⏳ fase 2 (gasto institucional) |
 | 6 | Pedidos por Ley 5282/14 (informacionpublica.paraguay.gov.py) | Combustible, telefonía, asesores por legislador, todo lo que no se publica | Respuestas oficiales | ⏳ carga manual con URL de la respuesta como fuente |
+
+## Nómina SFP: quién cuenta como político (verificado con abril de 2026)
+
+| Quién | Cómo figura en la nómina | Resultado abril 2026 |
+|---|---|---|
+| Senadores | Cámara de Senadores, cargo "MIEMBROS" (o "PRESIDENTE", "VICE PTE."), función "SENADOR NACIONAL" | 44 · ₲ 37.900.000/mes (dieta 32.606.840 + representación 5.293.160) |
+| Diputados | Cámara de Diputados, cargo "DIPUTADO NACIONAL" | 80 · ₲ 29.562.000/mes (dieta 25.433.335 + representación 4.128.665) |
+| Presidente | Presidencia, cargo "PRESIDENTE DE LA REPUBLICA" | ₲ 37.908.800/mes |
+| Vicepresidente | Vice Presidencia (entidad aparte), cargo "VICEPRESIDENTE" | ₲ 36.780.000/mes |
+| Ministros | Ministerios, cargo o función "MINISTRO/A" | 15 |
+| Ministros-secretarios | Presidencia, cargo o función "MINISTRO/A…" (secretarías con rango de ministro) | 23 |
+
+Las reglas están ancladas para **no** tomar a los funcionarios de los despachos ("PRESTA SERVICIOS
+EN EL DESPACHO LEGISLATIVO DEL DIPUTADO…", "DESPACHO DEL SENADOR…"), que son cientos. Se excluyen
+a propósito: el Ministerio Público y la Defensa Pública (no son el Ejecutivo) y el Ministerio de
+Relaciones Exteriores, donde "MINISTRO" es un rango diplomático (más de 240 registros). **El
+canciller no se puede identificar en la nómina** (casi todos los registros tienen función "NO
+DISPONIBLE"): queda pendiente de otra fuente.
+
+La misma persona puede figurar con otro segundo apellido (de casada: "Valiente Cabrera" en la
+nómina, "Valiente de Rodríguez" en el Senado). Se unen por primer nombre + primer apellido dentro
+del mismo cargo, solo con un único candidato y nunca si tienen cédula o ID del SILpy distintos.
+
+**Hueco de datos:** los archivos están completos hasta abril de 2026; mayo viene parcial y desde
+junio de 2026 el portal publica archivos casi vacíos (1-6 KB; octubre, 1,4 MB). El importador no
+marca esos meses como importados y los vuelve a intentar en cada corrida.
 
 ## Cómo se cruzan los nombres
 
@@ -39,7 +65,9 @@ choferes, prensa y exsenadores.
 
 ## Problemas conocidos
 
-- No todas las instituciones reportan a la SFP a tiempo; puede faltar algún mes.
+- No todas las instituciones reportan a la SFP a tiempo; puede faltar algún mes (ver "Hueco de datos").
+- Un senador con permiso que asume como ministro (p.ej. Enrique Riera, Interior) aparece como dos
+  registros: senador (sin cobro mientras dura el permiso) y ministro.
 - Las cámaras publican viáticos con atraso (a veces varios meses).
 - Las listas de viáticos mezclan legisladores y funcionarios: lo que no se puede asignar
   con seguridad queda en `sin_asignar` y se revisa con `python -m costopolitico pendientes`.

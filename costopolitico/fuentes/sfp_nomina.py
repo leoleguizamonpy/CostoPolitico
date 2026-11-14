@@ -10,6 +10,7 @@ que cumplen REGLAS_NOMINA (legisladores, presidente, vice, ministros).
 """
 import csv
 import io
+import re
 import sys
 import zipfile
 from pathlib import Path
@@ -19,6 +20,23 @@ from .. import normalizar, personas
 FUENTE = "Nómina de funcionarios — datos abiertos SFP/VCHGO (Ley 5189/14)"
 URL_PORTAL = "https://datos.sfp.gov.py/data/funcionarios"
 
+_ENTIDADES = re.compile(r"C.MARA|PRESIDENCIA|MINISTERIO", re.IGNORECASE)
+
+# Clasificador presupuestario (objeto de gasto) — nombres legibles de los más frecuentes.
+OBJETOS = {
+    "111": "Sueldo",
+    "112": "Dieta",
+    "113": "Gastos de representación",
+    "114": "Aguinaldo",
+    "123": "Remuneración extraordinaria",
+    "125": "Remuneración adicional",
+    "133": "Bonificaciones y gratificaciones",
+    "137": "Gratificaciones por servicios especiales",
+    "191": "Subsidio para la salud",
+    "199": "Otros gastos del personal",
+    "232": "Viáticos y movilidad",
+}
+
 # Los nombres de columna cambiaron entre años; se acepta cualquiera de estos alias.
 ALIAS = {
     "anho": ["anho", "anio", "año", "ano"],
@@ -27,7 +45,8 @@ ALIAS = {
     "documento": ["documento", "cedula", "ci"],
     "nombres": ["nombres", "nombre"],
     "apellidos": ["apellidos", "apellido"],
-    "cargo": ["cargo", "funcion"],
+    "cargo": ["cargo"],
+    "funcion": ["funcion"],
     "objeto_gasto": ["objeto_gasto", "objeto_de_gasto"],
     "concepto": ["concepto", "descripcion_objeto_gasto"],
     "devengado": ["devengado"],
@@ -36,19 +55,23 @@ ALIAS = {
 
 
 def _abrir(ruta: Path):
-    """Acepta .csv o .zip con un .csv adentro. Prueba UTF-8 y Latin-1."""
+    """Abre .csv o .zip (con un .csv adentro) como texto, SIN cargarlo entero en memoria:
+    los archivos mensuales pesan ~45 MB comprimidos y varios cientos descomprimidos.
+    Detecta la codificación con una muestra (los de 2026 vienen en Latin-1)."""
     if ruta.suffix.lower() == ".zip":
-        with zipfile.ZipFile(ruta) as z:
-            nombre = next(n for n in z.namelist() if n.lower().endswith(".csv"))
-            crudo = z.read(nombre)
+        z = zipfile.ZipFile(ruta)
+        nombre = next(n for n in z.namelist() if n.lower().endswith(".csv"))
+        abrir_binario = lambda: z.open(nombre)
     else:
-        crudo = ruta.read_bytes()
-    for cod in ("utf-8-sig", "latin-1"):
-        try:
-            return io.StringIO(crudo.decode(cod))
-        except UnicodeDecodeError:
-            continue
-    raise ValueError(f"No se pudo decodificar {ruta}")
+        abrir_binario = lambda: open(ruta, "rb")
+    with abrir_binario() as b:
+        muestra = b.read(2_000_000)
+    try:
+        muestra[:-4].decode("utf-8")
+        codificacion = "utf-8-sig"
+    except UnicodeDecodeError:
+        codificacion = "latin-1"
+    return io.TextIOWrapper(abrir_binario(), encoding=codificacion, newline="")
 
 
 def _mapear_columnas(encabezado: list[str]) -> dict[str, str]:
@@ -67,28 +90,35 @@ def _mapear_columnas(encabezado: list[str]) -> dict[str, str]:
 
 def importar(con, ruta, fuente_url: str = URL_PORTAL) -> dict:
     ruta = Path(ruta)
+    with _abrir(ruta) as texto:
+        primera = texto.readline()
+    delimitador = csv.Sniffer().sniff(primera, delimiters=",;|").delimiter
     texto = _abrir(ruta)
-    muestra = texto.read(4096)
-    texto.seek(0)
-    delimitador = csv.Sniffer().sniff(muestra, delimiters=",;|").delimiter
     lector = csv.DictReader(texto, delimiter=delimitador)
     col = _mapear_columnas(lector.fieldnames or [])
     descargado = normalizar.ahora()
     stats = {"filas": 0, "politicos": 0, "gastos_nuevos": 0}
+    repetidas: dict = {}
 
     def v(fila, clave):
         return (fila.get(col.get(clave, ""), "") or "").strip()
 
     for fila in lector:
         stats["filas"] += 1
-        regla = personas.clasificar(v(fila, "entidad"), v(fila, "cargo"))
+        # Filtro barato antes de las expresiones regulares: ~1 millón de filas por mes.
+        if not _ENTIDADES.search(fila.get(col["entidad"], "") or ""):
+            continue
+        regla = personas.clasificar(v(fila, "entidad"), v(fila, "cargo"), v(fila, "funcion"))
         if not regla:
             continue
-        monto = normalizar.monto(v(fila, "devengado")) or normalizar.monto(v(fila, "presupuestado"))
+        nombre = f"{v(fila, 'nombres')} {v(fila, 'apellidos')}".strip()
+        if personas.es_relleno(nombre):
+            continue
+        # Solo lo efectivamente devengado (pagado). Lo presupuestado no es gasto.
+        monto = normalizar.monto(v(fila, "devengado"))
         if not monto:
             continue
         stats["politicos"] += 1
-        nombre = f"{v(fila, 'nombres')} {v(fila, 'apellidos')}".strip()
         pid = personas.guardar(
             con,
             documento=v(fila, "documento") or None,
@@ -101,18 +131,90 @@ def importar(con, ruta, fuente_url: str = URL_PORTAL) -> dict:
         )
         anho, mes = v(fila, "anho"), v(fila, "mes")
         periodo = f"{int(anho):04d}-{int(mes):02d}" if anho.isdigit() and mes.isdigit() else "s/f"
-        concepto = " ".join(x for x in (v(fila, "objeto_gasto"), v(fila, "concepto")) if x) or "Remuneración"
+        objeto = v(fila, "objeto_gasto")
+        # Puede haber dos líneas idénticas legítimas en un mes (dos viáticos del mismo monto):
+        # se numeran para que no se fusionen, sin perder la idempotencia al reimportar.
+        clave = (pid, periodo, objeto, monto)
+        repetidas[clave] = n = repetidas.get(clave, 0) + 1
+        concepto = OBJETOS.get(objeto, v(fila, "concepto").title() or "Remuneración")
+        categoria = "viatico" if objeto.startswith("23") else "remuneracion"
+        detalle = " · ".join(x for x in (f"objeto de gasto {objeto}" if objeto else "", v(fila, "funcion") or v(fila, "cargo")) if x)
         cur = con.execute(
             "INSERT OR IGNORE INTO gastos (persona_id, categoria, concepto, monto, periodo, detalle,"
             " fuente_nombre, fuente_url, descargado_en, huella) VALUES (?,?,?,?,?,?,?,?,?,?)",
-            (pid, "remuneracion", concepto, monto, periodo, v(fila, "cargo"), FUENTE, fuente_url,
-             descargado, normalizar.huella("sfp", pid, periodo, concepto, monto)),
+            (pid, categoria, concepto, monto, periodo, detalle, FUENTE, fuente_url,
+             descargado, normalizar.huella("sfp", pid, periodo, objeto, monto, n)),
         )
         stats["gastos_nuevos"] += cur.rowcount
     con.commit()
+    texto.close()
     return stats
 
 
 if __name__ == "__main__":
     from ..db import conectar
     print(importar(conectar(), sys.argv[1]))
+
+
+# ---------- descarga mensual ----------
+# Verificado en noviembre de 2026: https://datos.sfp.gov.py/data/funcionarios_{año}_{mes}.csv.zip
+# (mes sin cero a la izquierda). Los archivos completos pesan 30-50 MB; desde junio de 2026 el
+# portal publica archivos casi vacíos (1-6 KB) y octubre de 2026 viene parcial (1,4 MB).
+# Un archivo bajo el umbral se considera incompleto: no se importa ni se marca, y se vuelve a
+# intentar en la próxima corrida por si la SFP lo completa.
+
+URL_MES = "https://datos.sfp.gov.py/data/funcionarios_{anho}_{mes}.csv.zip"
+UMBRAL_COMPLETO = 10_000_000  # bytes
+
+
+def meses(desde: tuple[int, int], hasta: tuple[int, int]):
+    a, m = desde
+    while (a, m) <= hasta:
+        yield a, m
+        a, m = (a + 1, 1) if m == 12 else (a, m + 1)
+
+
+def descargar_meses(con, desde: tuple[int, int] = (2023, 7), hasta: tuple[int, int] | None = None,
+                    sesion=None, carpeta=None, umbral: int = UMBRAL_COMPLETO) -> dict:
+    """Baja e importa cada mes publicado. Por defecto desde julio de 2023 (inicio del período
+    legislativo y de gobierno 2023-2028)."""
+    import tempfile
+    from datetime import date
+
+    import requests
+
+    s = sesion or requests.Session()
+    s.headers["User-Agent"] = "CostoPolitico/0.1 (transparencia; github.com/leoleguizamonpy/CostoPolitico)"
+    hoy = date.today()
+    hasta = hasta or (hoy.year, hoy.month)
+    carpeta = Path(carpeta or tempfile.mkdtemp(prefix="sfp_"))
+    carpeta.mkdir(parents=True, exist_ok=True)
+    resumen = {"importados": [], "ya_importados": 0, "incompletos": [], "no_publicados": []}
+    for a, m in meses(desde, hasta):
+        clave = f"{a}-{m:02d}"
+        if con.execute("SELECT 1 FROM importaciones WHERE fuente='sfp' AND clave=?", (clave,)).fetchone():
+            resumen["ya_importados"] += 1
+            continue
+        url = URL_MES.format(anho=a, mes=m)
+        cab = s.head(url, timeout=60, allow_redirects=True)
+        if cab.status_code == 404:
+            resumen["no_publicados"].append(clave)
+            continue
+        cab.raise_for_status()
+        tam = int(cab.headers.get("content-length") or 0)
+        if tam and tam < umbral:
+            resumen["incompletos"].append(f"{clave} ({tam:,} bytes)".replace(",", "."))
+            continue
+        destino = carpeta / f"funcionarios_{a}_{m}.csv.zip"
+        with s.get(url, stream=True, timeout=600) as r:
+            r.raise_for_status()
+            with open(destino, "wb") as f:
+                for trozo in r.iter_content(1 << 20):
+                    f.write(trozo)
+        res = importar(con, destino, url)
+        con.execute("INSERT OR REPLACE INTO importaciones VALUES ('sfp', ?, ?, ?)",
+                    (clave, normalizar.ahora(), str(res)))
+        con.commit()
+        destino.unlink(missing_ok=True)
+        resumen["importados"].append(clave)
+    return resumen

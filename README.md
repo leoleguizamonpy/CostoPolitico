@@ -36,8 +36,9 @@ tests/                 pruebas con datos ficticios
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
-# 1. Remuneraciones: descargar el CSV mensual desde https://datos.sfp.gov.py/data/funcionarios
-python -m costopolitico nomina data/crudos/funcionarios_2026_9.csv
+# 1. Remuneraciones: baja e importa los meses de la nómina SFP (desde julio de 2023 por defecto).
+#    Son ~45 MB por mes; los meses ya importados se saltan.
+python -m costopolitico sueldos --desde 2023-07
 
 # 2. Todo lo automático, en el orden correcto (nóminas de ambas cámaras, viajes, exportación).
 #    Es el comando para el cron mensual del VPS.
@@ -74,6 +75,8 @@ python -m pytest
 - [x] Base de datos, nómina SFP, viáticos de Diputados, app web
 - [x] Scraper del Senado (nómina y viajes con viáticos)
 - [x] Nómina de diputados y descarga automática de sus planillas de viáticos
-- [ ] Descarga automática mensual (cron en el VPS)
+- [x] Descarga automática de sueldos (SFP)
+- [ ] Cron mensual en el VPS
+- [ ] Canciller (no identificable en la nómina SFP)
 - [ ] Viáticos de ministros (Contraloría / portales de cada ministerio)
 - [ ] Fase 2: gasto institucional (DNCP, ejecución presupuestaria) en sección aparte

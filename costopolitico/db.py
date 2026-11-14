@@ -44,6 +44,15 @@ CREATE TABLE IF NOT EXISTS gastos (
 );
 CREATE INDEX IF NOT EXISTS ix_gastos_persona ON gastos(persona_id);
 
+-- Qué archivos ya se importaron (para no bajar dos veces los ~45 MB mensuales de la SFP).
+CREATE TABLE IF NOT EXISTS importaciones (
+    fuente       TEXT NOT NULL,
+    clave        TEXT NOT NULL,
+    importado_en TEXT NOT NULL,
+    resultado    TEXT,
+    PRIMARY KEY (fuente, clave)
+);
+
 -- Alias manuales para nombres que el cruce automático no resuelve (se cargan de data/alias.csv).
 CREATE TABLE IF NOT EXISTS alias (
     nombre_norm TEXT PRIMARY KEY,

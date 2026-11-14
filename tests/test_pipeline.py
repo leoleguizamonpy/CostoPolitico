@@ -15,7 +15,7 @@ FIX = Path(__file__).parent / "fixtures"
 NOMINA = """anho,mes,descripcion_entidad,documento,nombres,apellidos,cargo,objeto_gasto,concepto,presupuestado,devengado
 2026,9,CAMARA DE SENADORES,1000001,ANA MARIA,PRUEBA GOMEZ,SENADORA NACIONAL,111,SUELDOS,40000000,40000000
 2026,9,CAMARA DE SENADORES,1000001,ANA MARIA,PRUEBA GOMEZ,SENADORA NACIONAL,113,GASTOS DE REPRESENTACION,12000000,12000000
-2026,9,CAMARA DE DIPUTADOS,1000002,JUAN CARLOS,EJEMPLO RUIZ,DIPUTADO NACIONAL,111,SUELDOS,"38.000.000",
+2026,9,CAMARA DE DIPUTADOS,1000002,JUAN CARLOS,EJEMPLO RUIZ,DIPUTADO NACIONAL,111,SUELDOS,"38.000.000","38.000.000"
 2026,9,CAMARA DE DIPUTADOS,1000003,PEDRO,FICTICIO,ASESOR,144,JORNALES,5000000,5000000
 2026,9,MINISTERIO DE SALUD PUBLICA,1000004,LUISA,DEMO VERA,MINISTRA,111,SUELDOS,37000000,37000000
 2026,9,MINISTERIO DE SALUD PUBLICA,1000005,MARIO,MUESTRA,VICEMINISTRO,111,SUELDOS,30000000,30000000
@@ -101,3 +101,42 @@ def test_viaticos_csv_exige_fuente(con, tmp_path):
         "nombre,destino,fecha_inicio,fecha_fin,motivo,monto,fuente_nombre,fuente_url\n"
         "X,Y,01/09/2026,02/09/2026,Z,1000,Senado,\n", encoding="utf-8")
     assert viaticos.importar_csv(con, p)["invalida"] == 1
+
+
+def test_reglas_nomina_con_casos_reales():
+    from costopolitico.personas import clasificar
+    c = lambda e, car, f="": (clasificar(e, car, f) or {}).get("titulo")
+    assert c("CAMARA DE SENADORES", "MIEMBROS", "SENADOR NACIONAL") == "Senador/a"
+    assert c("CAMARA DE SENADORES", "JORNALES", "DESPACHO DEL SENADOR DIONISIO AMARILLA") is None
+    assert c("CAMARA DE DIPUTADOS", "DIPUTADO NACIONAL", "PRESIDENTE H.C.D.") == "Diputado/a"
+    assert c("CAMARA DE DIPUTADOS", "", "PRESTA SERVICIOS EN EL DESPACHO LEGISLATIVO DEL DIPUTADO X") is None
+    assert c("CAMARA DE DIPUTADOS", "ASESOR", "DESPACHO DEL SENADOR JUAN AFARA") is None
+    assert c("PRESIDENCIA DE LA REPUBLICA", "PRESIDENTE DE LA REPUBLICA") == "Presidente/a de la República"
+    assert c("VICE PRESIDENCIA DE LA REPUBLICA", "VICEPRESIDENTE", "VICEPRESIDENTE") == "Vicepresidente/a de la República"
+    assert c("VICE PRESIDENCIA DE LA REPUBLICA", "COMISIONADO/A", "CÁMARA DE SENADORES") is None
+    assert c("PRESIDENCIA DE LA REPUBLICA", "SECRETARIO EJECUTIVO", "MINISTRO SECRETARIO EJECUTIVO") == "Ministro/a (Presidencia)"
+    assert c("MINISTERIO DEL INTERIOR", "MINISTRO", "MINISTRO") == "Ministro/a"
+    assert c("MINISTERIO DE SALUD PUBLICA Y BIENESTAR SOCIAL", "MINISTRO/MINISTRA DE SALUD", "MINISTRO A") == "Ministro/a"
+    assert c("MINISTERIO DE ECONOMIA Y FINANZAS (MEF)", "VICEMINISTRO", "VICEMINISTRO") is None
+    assert c("MINISTERIO DE RELACIONES EXTERIORES", "MINISTRO", "NO DISPONIBLE") is None  # rango diplomático
+    assert c("MINISTERIO PUBLICO", "MINISTRO", "") is None
+    assert c("MINISTERIO DE LA DEFENSA PUBLICA", "MINISTRO", "") is None
+
+
+def test_zip_latin1_y_meses(con, tmp_path):
+    import zipfile
+    texto = ("anho,mes,descripcion_entidad,documento,nombres,apellidos,cargo,funcion,objeto_gasto,concepto,presupuestado,devengado\r\n"
+             "2026,4,MINISTERIO DE AGRICULTURA Y GANADERÍA,3000001,ÑANDÚ,PEÑA PRUEBA,MINISTRO,MINISTRO,111,SUELDO,22000000,22000000\r\n"
+             "2026,4,MINISTERIO DE AGRICULTURA Y GANADERÍA,3000001,ÑANDÚ,PEÑA PRUEBA,MINISTRO,MINISTRO,232,VIATICOS,500000,500000\r\n"
+             "2026,4,MINISTERIO DE AGRICULTURA Y GANADERÍA,3000001,ÑANDÚ,PEÑA PRUEBA,MINISTRO,MINISTRO,232,VIATICOS,500000,500000\r\n")
+    z = tmp_path / "funcionarios_2026_4.csv.zip"
+    with zipfile.ZipFile(z, "w", zipfile.ZIP_DEFLATED) as f:
+        f.writestr("funcionarios_2026_4.csv", texto.encode("latin-1"))
+    r = sfp_nomina.importar(con, z)
+    assert r["gastos_nuevos"] == 3  # los dos viáticos idénticos no se fusionan
+    assert sfp_nomina.importar(con, z)["gastos_nuevos"] == 0  # reimportar no duplica
+    p = con.execute("SELECT nombre_completo, cargo FROM personas").fetchone()
+    assert tuple(p) == ("Ñandú Peña Prueba", "Ministro/a")
+    cats = dict(con.execute("SELECT categoria, SUM(monto) FROM gastos GROUP BY categoria").fetchall())
+    assert cats == {"remuneracion": 22_000_000, "viatico": 1_000_000}
+    assert list(sfp_nomina.meses((2025, 11), (2026, 2))) == [(2025, 11), (2025, 12), (2026, 1), (2026, 2)]

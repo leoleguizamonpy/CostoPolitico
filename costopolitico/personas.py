@@ -5,23 +5,39 @@ from difflib import SequenceMatcher
 
 from . import normalizar
 
-# Reglas sobre la nómina de la SFP (Ley 5189). Se evalúan en orden; la primera que
-# coincide define el cargo. 'entidad' y 'cargo' son regex sobre texto normalizado.
+# Reglas sobre la nómina de la SFP (Ley 5189), verificadas con el archivo de abril de 2026.
+# Se evalúan en orden; la primera que coincide define el cargo. Cada regla mira la entidad y
+# el cargo O la función (en la nómina los senadores figuran con cargo "MIEMBROS" y función
+# "SENADOR NACIONAL"). Los patrones están anclados para NO tomar a los funcionarios de los
+# despachos ("PRESTA SERVICIOS EN EL DESPACHO DEL DIPUTADO…", "DESPACHO DEL SENADOR…").
+# Exclusiones deliberadas:
+#  - Ministerio Público y Ministerio de la Defensa Pública: no son el Poder Ejecutivo.
+#  - Ministerio de Relaciones Exteriores: "MINISTRO" es también rango del servicio diplomático
+#    (cientos de registros); el canciller se identifica aparte (CARGOS_MANUALES).
 REGLAS_NOMINA = [
-    {"entidad": r"SENADORES", "cargo": r"\bSENADOR", "titulo": "Senador/a", "poder": "legislativo"},
-    {"entidad": r"DIPUTADOS", "cargo": r"\bDIPUTAD", "titulo": "Diputado/a", "poder": "legislativo"},
-    {"entidad": r"PRESIDENCIA", "cargo": r"^VICE ?PRESIDENTE DE LA REPUBLICA", "titulo": "Vicepresidente/a de la República", "poder": "ejecutivo"},
-    {"entidad": r"PRESIDENCIA", "cargo": r"^PRESIDENTE DE LA REPUBLICA", "titulo": "Presidente/a de la República", "poder": "ejecutivo"},
-    {"entidad": r"MINISTERIO", "cargo": r"^MINISTR[OA]\b", "titulo": "Ministro/a", "poder": "ejecutivo"},
+    {"entidad": r"^CAMARA DE SENADORES", "cargo": r"^SENADORA?( NACIONAL)?$", "titulo": "Senador/a", "poder": "legislativo"},
+    {"entidad": r"^CAMARA DE DIPUTADOS", "cargo": r"^DIPUTAD[OA]( NACIONAL)?$", "titulo": "Diputado/a", "poder": "legislativo"},
+    {"entidad": r"^VICE ?PRESIDENCIA", "cargo": r"^VICE ?PRESIDENTE", "titulo": "Vicepresidente/a de la República", "poder": "ejecutivo"},
+    {"entidad": r"^PRESIDENCIA", "cargo": r"^PRESIDENTE DE LA REPUBLICA", "titulo": "Presidente/a de la República", "poder": "ejecutivo"},
+    {"entidad": r"^PRESIDENCIA", "cargo": r"^MINISTR[OA]\b", "titulo": "Ministro/a (Presidencia)", "poder": "ejecutivo"},
+    {"entidad": r"^MINISTERIO (?!PUBLICO|DE LA DEFENSA PUBLICA|DE RELACIONES EXTERIORES)",
+     "cargo": r"^MINISTR[OA]\b", "titulo": "Ministro/a", "poder": "ejecutivo"},
 ]
+# Registros de relleno que algunas instituciones cargan en la nómina.
+_RELLENO = re.compile(r"VACANTE|DEL FUNCIONARIO|NO DISPONIBLE")
 
 
-def clasificar(entidad: str, cargo: str) -> dict | None:
-    ent, car = normalizar.nombre(entidad), normalizar.nombre(cargo)
+def clasificar(entidad: str, cargo: str, funcion: str = "") -> dict | None:
+    ent = normalizar.nombre(entidad)
+    textos = [normalizar.nombre(cargo), normalizar.nombre(funcion)]
     for regla in REGLAS_NOMINA:
-        if re.search(regla["entidad"], ent) and re.search(regla["cargo"], car):
+        if re.search(regla["entidad"], ent) and any(re.search(regla["cargo"], t) for t in textos if t):
             return regla
     return None
+
+
+def es_relleno(nombre: str) -> bool:
+    return bool(_RELLENO.search(normalizar.nombre(nombre)))
 
 
 def guardar(con: sqlite3.Connection, *, nombre_completo, cargo, poder, institucion, documento=None,
@@ -44,6 +60,19 @@ def guardar(con: sqlite3.Connection, *, nombre_completo, cargo, poder, instituci
         pid = f["id"] if f else None
     if pid is None:
         pid = buscar_por_nombre(con, nombre_completo, (cargo,), permitir_corto=False)
+    if pid is None and nombres_norm and apellidos_norm:
+        # Misma persona con otro segundo apellido (p.ej. de casada: "Valiente Cabrera" en la
+        # nómina, "Valiente de Rodríguez" en el Senado): primer nombre + primer apellido,
+        # dentro del mismo cargo y solo si hay un único candidato.
+        n0, a0 = _tokens(nombres_norm)[:1], _tokens(apellidos_norm)[:1]
+        # Nunca une registros con identificadores distintos: son personas distintas.
+        cand = [f["id"] for f in con.execute(
+            "SELECT id, nombres_norm, apellidos_norm, silpy_id, documento FROM personas"
+            " WHERE cargo = ? AND nombres_norm IS NOT NULL", (cargo,))
+            if _tokens(f["nombres_norm"])[:1] == n0 and _tokens(f["apellidos_norm"])[:1] == a0
+            and not (silpy_id and f["silpy_id"] and f["silpy_id"] != silpy_id)
+            and not (documento and f["documento"] and f["documento"] != documento)]
+        pid = cand[0] if len(cand) == 1 else None
 
     if pid:
         con.execute(

@@ -8,6 +8,30 @@ from .db import RAIZ
 SALIDA = RAIZ / "web" / "data.json"
 
 
+MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto",
+         "septiembre", "octubre", "noviembre", "diciembre"]
+
+
+def _agrupar_remuneraciones(gastos: list[dict]) -> list[dict]:
+    """Un renglón por mes para las remuneraciones (dieta + representación + …), con el
+    desglose en el detalle. Los viáticos quedan uno por viaje."""
+    otros, por_mes = [], {}
+    for g in gastos:
+        if g["categoria"] != "remuneracion" or g["periodo"] == "s/f":
+            otros.append(g)
+            continue
+        m = por_mes.setdefault(g["periodo"], {**g, "monto": 0, "partes": {}})
+        m["monto"] += g["monto"]
+        m["partes"][g["concepto"]] = m["partes"].get(g["concepto"], 0) + g["monto"]
+    for periodo, m in por_mes.items():
+        a, mm = periodo.split("-")
+        m["concepto"] = f"Remuneración de {MESES[int(mm) - 1]} {a}"
+        m["detalle"] = " · ".join(f"{k}: ₲ {v:,}".replace(",", ".") for k, v in
+                                  sorted(m.pop("partes").items(), key=lambda kv: -kv[1]))
+        otros.append(m)
+    return sorted(otros, key=lambda g: (g.get("fecha_inicio") or g["periodo"]), reverse=True)
+
+
 def exportar(con, salida: Path = SALIDA) -> dict:
     personas = []
     for p in con.execute("SELECT * FROM personas ORDER BY nombre_completo"):
@@ -15,6 +39,7 @@ def exportar(con, salida: Path = SALIDA) -> dict:
             "SELECT categoria, concepto, monto, periodo, fecha_inicio, fecha_fin, detalle,"
             " fuente_nombre, fuente_url, descargado_en FROM gastos WHERE persona_id = ?"
             " ORDER BY COALESCE(fecha_inicio, periodo) DESC, monto DESC", (p["id"],))]
+        gastos = _agrupar_remuneraciones(gastos)
         totales = {}
         for g in gastos:
             totales[g["categoria"]] = totales.get(g["categoria"], 0) + g["monto"]

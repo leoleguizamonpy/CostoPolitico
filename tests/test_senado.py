@@ -144,3 +144,20 @@ def test_devolucion_mayor_al_asignado(con):
     senado.importar_detalle(con, raro, 901)
     g = con.execute("SELECT monto, detalle FROM gastos WHERE fuente_url LIKE '%mision-1'").fetchone()
     assert g["monto"] == 0 and "ATENCIÓN" in g["detalle"]
+
+
+def test_nomina_sfp_une_apellido_de_casada(con, tmp_path):
+    senado.importar_nomina(con, _senador(1, "Valiente de Ejemplo", "Regina Luz", 900010, "P"))
+    csv = tmp_path / "n.csv"
+    csv.write_text(
+        "anho,mes,descripcion_entidad,documento,nombres,apellidos,cargo,funcion,objeto_gasto,concepto,presupuestado,devengado\n"
+        "2026,4,CAMARA DE SENADORES,2000001,REGINA LUZ,VALIENTE CABRERA,MIEMBROS,SENADOR NACIONAL,112,DIETA,32606840,32606840\n"
+        "2026,4,CAMARA DE SENADORES,2000002,PEDRO,PERSONAL,JORNALES,DESPACHO DEL SENADOR X,144,JORNALES,3000000,3000000\n"
+        "2026,4,CAMARA DE SENADORES,2000003,ERICO,SIN COBRO,MIEMBROS,SENADOR NACIONAL,112,DIETA,32606840,0\n",
+        encoding="utf-8")
+    r = sfp_nomina.importar(con, csv)
+    assert r["politicos"] == 1  # solo la senadora: ni el funcionario del despacho ni quien no cobró
+    filas = con.execute("SELECT nombre_completo, documento, silpy_id FROM personas").fetchall()
+    assert [tuple(f) for f in filas] == [("Regina Luz Valiente De Ejemplo", "2000001", "900010")]
+    g = con.execute("SELECT concepto, monto FROM gastos").fetchone()
+    assert tuple(g) == ("Dieta", 32606840)
