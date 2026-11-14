@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>¿Cuánto te cuestan tus políticos?</title>
+<meta name="description" content="Cuánto dinero público se asigna a cada senador, diputado y autoridad del Ejecutivo del Paraguay, con fuente oficial en cada monto.">
+<style>
+  :root {
+    --fondo: #f6f5f1;
+    --papel: #ffffff;
+    --tinta: #16181d;
+    --suave: #5b6070;
+    --linea: #e2e0d8;
+    --acento: #c8102e;
+    --azul: #0038a8;
+    --radio: 10px;
+    --esp: clamp(0.75rem, 2vw, 1.25rem);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--fondo);
+    color: var(--tinta);
+    line-height: 1.45;
+  }
+  header {
+    background: var(--tinta);
+    color: #fff;
+    padding: clamp(1.5rem, 6vw, 3.5rem) var(--esp) clamp(1.25rem, 4vw, 2.5rem);
+    border-bottom: 6px solid var(--acento);
+  }
+  .contenedor { max-width: 960px; margin: 0 auto; }
+  h1 {
+    font-size: clamp(1.9rem, 6vw, 3.4rem);
+    line-height: 1.05;
+    margin: 0 0 0.5rem;
+    letter-spacing: -0.02em;
+  }
+  h1 span { color: #ff5c6c; }
+  .bajada { color: #c9ccd6; max-width: 46ch; margin: 0; font-size: clamp(0.95rem, 2.2vw, 1.1rem); }
+  .resumen {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
+    gap: var(--esp);
+    margin-top: clamp(1rem, 3vw, 1.75rem);
+  }
+  .dato { border-left: 3px solid var(--acento); padding-left: 0.75rem; }
+  .dato b { display: block; font-size: clamp(1.2rem, 3.5vw, 1.7rem); }
+  .dato small { color: #c9ccd6; }
+  main { padding: var(--esp); }
+  .aviso {
+    background: #fff8e6;
+    border: 1px solid #f0d78c;
+    border-radius: var(--radio);
+    padding: 0.75rem 1rem;
+    font-size: 0.9rem;
+    margin: var(--esp) 0;
+  }
+  .controles { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: var(--esp); }
+  .filtro {
+    border: 1px solid var(--linea);
+    background: var(--papel);
+    border-radius: 999px;
+    padding: 0.45rem 0.9rem;
+    font: inherit;
+    font-size: 0.9rem;
+    cursor: pointer;
+  }
+  .filtro[aria-pressed="true"] { background: var(--tinta); color: #fff; border-color: var(--tinta); }
+  input[type="search"] {
+    flex: 1 1 220px;
+    border: 1px solid var(--linea);
+    border-radius: 999px;
+    padding: 0.5rem 1rem;
+    font: inherit;
+    background: var(--papel);
+  }
+  ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
+  .fila {
+    display: grid;
+    grid-template-columns: 2.2rem 1fr auto;
+    gap: 0.75rem;
+    align-items: center;
+    background: var(--papel);
+    border: 1px solid var(--linea);
+    border-radius: var(--radio);
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
+    font: inherit;
+    color: inherit;
+  }
+  .fila:hover, .fila:focus-visible { border-color: var(--tinta); outline: none; }
+  .pos { color: var(--suave); font-variant-numeric: tabular-nums; }
+  .nombre { font-weight: 650; }
+  .cargo { color: var(--suave); font-size: 0.85rem; }
+  .barra { display: block; height: 4px; background: var(--linea); border-radius: 2px; margin-top: 0.4rem; overflow: hidden; }
+  .barra i { display: block; height: 100%; background: var(--acento); }
+  .monto { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; font-size: clamp(0.95rem, 2.4vw, 1.1rem); }
+  .vacio { text-align: center; color: var(--suave); padding: 3rem 1rem; }
+  dialog {
+    border: 0;
+    border-radius: var(--radio);
+    padding: 0;
+    width: min(760px, 94vw);
+    max-height: 90vh;
+  }
+  dialog::backdrop { background: rgb(22 24 29 / 0.6); }
+  .ficha { padding: clamp(1rem, 4vw, 2rem); }
+  .ficha h2 { margin: 0; font-size: clamp(1.3rem, 4vw, 1.8rem); }
+  .cerrar { float: right; border: 0; background: none; font-size: 1.6rem; cursor: pointer; line-height: 1; }
+  .categorias { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.75rem; margin: 1rem 0; }
+  .categorias div { background: var(--fondo); border-radius: 8px; padding: 0.6rem 0.8rem; }
+  .categorias b { display: block; font-variant-numeric: tabular-nums; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  th, td { text-align: left; padding: 0.45rem 0.4rem; border-bottom: 1px solid var(--linea); vertical-align: top; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  a { color: var(--azul); }
+  footer { color: var(--suave); font-size: 0.8rem; padding: 2rem var(--esp); text-align: center; }
+</style>
+</head>
+<body>
+<header>
+  <div class="contenedor">
+    <h1>¿Cuánto te cuestan <span>tus políticos?</span></h1>
+    <p class="bajada">Lo que el Estado paraguayo asigna a cada senador, diputado y autoridad del Ejecutivo. Cada monto con su fuente oficial.</p>
+    <div class="resumen" id="resumen"></div>
+  </div>
+</header>
+
+<main class="contenedor">
+  <p class="aviso" id="aviso">Cargando datos…</p>
+  <div class="controles" role="toolbar" aria-label="Filtrar">
+    <button class="filtro" data-filtro="todos" aria-pressed="true">Todos</button>
+    <button class="filtro" data-filtro="Senador/a" aria-pressed="false">Senado</button>
+    <button class="filtro" data-filtro="Diputado/a" aria-pressed="false">Diputados</button>
+    <button class="filtro" data-filtro="ejecutivo" aria-pressed="false">Ejecutivo</button>
+    <input type="search" id="buscar" placeholder="Buscar por nombre…" aria-label="Buscar por nombre">
+  </div>
+  <ol id="lista"></ol>
+</main>
+
+<dialog id="ficha"><div class="ficha" id="fichaContenido"></div></dialog>
+
+<footer>
+  Datos de fuentes oficiales (Ley 5189/14, Ley 5282/14 y portales de cada institución). Código abierto: CostoPolitico.
+</footer>
+
+<script>
+  const CATEGORIAS = {
+    remuneracion: "Sueldo y remuneraciones",
+    viatico: "Viáticos",
+    pasaje: "Pasajes",
+    asesores: "Asesores",
+    otros: "Otros"
+  };
+  const gs = n => "₲ " + Math.round(n).toLocaleString("es-PY");
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const sinTildes = s => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+
+  let datos = { personas: [] };
+  let filtro = "todos";
+
+  function filtradas() {
+    const q = sinTildes(document.getElementById("buscar").value.trim());
+    return datos.personas
+      .filter(p => filtro === "todos" || p.cargo === filtro || p.poder === filtro)
+      .filter(p => !q || sinTildes(p.nombre).includes(q))
+      .sort((a, b) => b.total - a.total);
+  }
+
+  function pintar() {
+    const lista = document.getElementById("lista");
+    const ps = filtradas();
+    if (!ps.length) {
+      lista.innerHTML = `<li class="vacio">${datos.personas.length ? "Sin resultados para esa búsqueda." : "Todavía no hay datos cargados."}</li>`;
+      return;
+    }
+    const max = ps[0].total || 1;
+    lista.innerHTML = ps.map((p, i) => `
+      <li><button class="fila" data-id="${p.id}">
+        <span class="pos">${i + 1}</span>
+        <span>
+          <span class="nombre">${esc(p.nombre)}</span><br>
+          <span class="cargo">${esc(p.cargo)} · ${esc(p.periodo_desde ?? "")}${p.periodo_hasta && p.periodo_hasta !== p.periodo_desde ? " a " + esc(p.periodo_hasta) : ""}</span>
+          <span class="barra"><i style="width:${(p.total / max * 100).toFixed(1)}%"></i></span>
+        </span>
+        <span class="monto">${gs(p.total)}</span>
+      </button></li>`).join("");
+  }
+
+  function abrir(id) {
+    const p = datos.personas.find(x => x.id === id);
+    if (!p) return;
+    const cats = Object.entries(p.totales)
+      .map(([k, v]) => `<div><small>${esc(CATEGORIAS[k] ?? k)}</small><b>${gs(v)}</b></div>`).join("");
+    const filas = p.gastos.map(g => `
+      <tr>
+        <td>${esc(g.fecha_inicio ?? g.periodo)}</td>
+        <td>${esc(g.concepto)}<br><small>${esc(g.detalle ?? "")}</small></td>
+        <td class="num">${gs(g.monto)}</td>
+        <td><a href="${esc(g.fuente_url)}" target="_blank" rel="noopener" title="${esc(g.fuente_nombre)}">Fuente</a></td>
+      </tr>`).join("");
+    document.getElementById("fichaContenido").innerHTML = `
+      <button class="cerrar" aria-label="Cerrar" onclick="document.getElementById('ficha').close()">×</button>
+      <small>${esc(p.cargo)} · ${esc(p.institucion)}</small>
+      <h2>${esc(p.nombre)}</h2>
+      <p class="monto">${gs(p.total)} <small class="cargo">(${esc(p.periodo_desde ?? "")} a ${esc(p.periodo_hasta ?? "")})</small></p>
+      <div class="categorias">${cats}</div>
+      <table><thead><tr><th>Fecha</th><th>Concepto</th><th>Monto</th><th></th></tr></thead><tbody>${filas}</tbody></table>`;
+    document.getElementById("ficha").showModal();
+  }
+
+  function resumen() {
+    const suma = (fn) => datos.personas.filter(fn).reduce((t, p) => t + p.total, 0);
+    const n = datos.personas.length;
+    document.getElementById("resumen").innerHTML = n ? `
+      <div class="dato"><b>${gs(suma(() => true))}</b><small>total registrado</small></div>
+      <div class="dato"><b>${gs(suma(p => p.poder === "legislativo"))}</b><small>Congreso</small></div>
+      <div class="dato"><b>${gs(suma(p => p.poder === "ejecutivo"))}</b><small>Ejecutivo</small></div>
+      <div class="dato"><b>${n}</b><small>autoridades</small></div>` : "";
+  }
+
+  document.querySelectorAll(".filtro").forEach(b => b.addEventListener("click", () => {
+    filtro = b.dataset.filtro;
+    document.querySelectorAll(".filtro").forEach(x => x.setAttribute("aria-pressed", x === b));
+    pintar();
+  }));
+  document.getElementById("buscar").addEventListener("input", pintar);
+  document.getElementById("lista").addEventListener("click", e => {
+    const b = e.target.closest(".fila");
+    if (b) abrir(Number(b.dataset.id));
+  });
+
+  fetch("data.json", { cache: "no-store" })
+    .then(r => r.ok ? r.json() : Promise.reject(r.status))
+    .then(d => {
+      datos = d;
+      const fecha = new Date(d.generado_en).toLocaleDateString("es-PY", { day: "numeric", month: "long", year: "numeric" });
+      document.getElementById("aviso").textContent = `${d.aviso} Actualizado al ${fecha}.`;
+      resumen();
+      pintar();
+    })
+    .catch(() => {
+      document.getElementById("aviso").textContent = "Todavía no hay datos publicados. Ejecutá «python -m costopolitico exportar» para generar data.json.";
+      pintar();
+    });
+</script>
+</body>
+</html>
