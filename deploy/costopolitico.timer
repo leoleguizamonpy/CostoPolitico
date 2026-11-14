@@ -1,0 +1,11 @@
+[Unit]
+Description=CostoPolitico - actualización mensual
+
+[Timer]
+# Día 25 de cada mes a las 03:17 (las cámaras publican cerca del día 20).
+OnCalendar=*-*-25 03:17:00
+Persistent=true
+RandomizedDelaySec=30m
+
+[Install]
+WantedBy=timers.target

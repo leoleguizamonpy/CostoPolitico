@@ -181,3 +181,17 @@ def _todos_parecidos(origen: list[str], destino: list[str]) -> bool:
             return False
         libres.remove(par)
     return True
+
+
+def sugerencias(con: sqlite3.Connection, nombre: str, n: int = 3) -> list[tuple[float, str, str, str]]:
+    """Personas más parecidas a un nombre sin asignar, para la revisión manual.
+    Devuelve (parecido 0-1, nombre, cargo, silpy_id o cédula)."""
+    objetivo = " ".join(_tokens(nombre))
+    res = []
+    for f in con.execute("SELECT nombre_completo, nombre_norm, cargo, silpy_id, documento FROM personas"):
+        r = SequenceMatcher(None, objetivo, " ".join(_tokens(f["nombre_norm"]))).ratio()
+        # Bonus si comparte palabras completas (el orden y las palabras extra bajan el ratio).
+        comunes = set(_tokens(nombre)) & set(_tokens(f["nombre_norm"]))
+        r = min(1.0, r + 0.1 * len(comunes))
+        res.append((round(r, 2), f["nombre_completo"], f["cargo"], f["silpy_id"] or f["documento"] or ""))
+    return sorted(res, reverse=True)[:n]

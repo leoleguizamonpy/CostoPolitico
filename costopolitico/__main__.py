@@ -22,6 +22,36 @@ def _mes(texto: str) -> tuple[int, int]:
     return int(a), int(m)
 
 
+def _pendientes(con, ruta_csv=None):
+    """Agrupa por nombre: un mismo funcionario puede tener decenas de viajes."""
+    import csv
+
+    from . import personas
+
+    filas = con.execute(
+        "SELECT origen, nombre, COUNT(*) AS n, SUM(monto) AS total, MIN(fuente_url) AS ejemplo"
+        " FROM sin_asignar GROUP BY origen, nombre ORDER BY total DESC").fetchall()
+    salida = []
+    for f in filas:
+        sug = personas.sugerencias(con, f["nombre"]) if f["origen"] != "posible_duplicado" else []
+        mejor = sug[0] if sug else None
+        linea = f"[{f['origen']}] {f['nombre']} — {f['n']} registro(s), ₲ {f['total'] or 0:,}".replace(",", ".")
+        if mejor and mejor[0] >= 0.75:
+            linea += f"  → ¿{mejor[1]} ({mejor[2]}, id {mejor[3]})? parecido {mejor[0]}"
+        print(linea)
+        salida.append({"origen": f["origen"], "nombre_fuente": f["nombre"], "registros": f["n"],
+                       "monto_total": f["total"] or 0, "ejemplo_fuente": f["ejemplo"],
+                       **{f"sugerencia_{i + 1}": f"{s_[1]} | {s_[2]} | id {s_[3]} | {s_[0]}" for i, s_ in enumerate(sug)}})
+    if ruta_csv and salida:
+        campos = list(dict.fromkeys(k for fila in salida for k in fila))
+        with open(ruta_csv, "w", newline="", encoding="utf-8") as fh:
+            w = csv.DictWriter(fh, fieldnames=campos)
+            w.writeheader()
+            w.writerows(salida)
+        print(f"\nCSV para revisar: {ruta_csv}. Para corregir, copiá nombre_fuente y el id elegido"
+              " a data/alias.csv (columna silpy_id o documento) y volvé a correr la importación.")
+
+
 def main():
     ap = argparse.ArgumentParser(prog="costopolitico")
     ap.add_argument("--db", help="ruta a la base SQLite (por defecto data/costopolitico.db)")
@@ -51,7 +81,8 @@ def main():
     s.add_argument("--desde", type=int, default=2023, help="año desde el que se bajan los viajes")
     s.add_argument("--sueldos-desde", default="2023-07", help="AAAA-MM desde el que se bajan sueldos")
 
-    sub.add_parser("pendientes", help="listar filas que no se pudieron asignar")
+    s = sub.add_parser("pendientes", help="listar lo que no se pudo asignar (con sugerencias)")
+    s.add_argument("--csv", help="además, escribir un CSV para revisar (p.ej. data/revision.csv)")
     sub.add_parser("exportar", help="generar web/data.json")
 
     a = ap.parse_args()
@@ -77,8 +108,7 @@ def main():
         print("diputados — viáticos:", diputados.descargar_viaticos(con, desde_anho=a.desde))
         print(exportar(con))
     elif a.cmd == "pendientes":
-        for f in con.execute("SELECT origen, nombre, monto, detalle FROM sin_asignar ORDER BY origen, nombre"):
-            print(f"[{f['origen']}] {f['nombre']} — ₲ {f['monto']:,} — {f['detalle']}".replace(",", "."))
+        _pendientes(con, a.csv)
     elif a.cmd == "exportar":
         print(exportar(con))
 

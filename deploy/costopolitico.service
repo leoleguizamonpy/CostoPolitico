@@ -1,0 +1,16 @@
+# Actualización de datos de CostoPolitico (la dispara costopolitico.timer).
+# Instalar: sudo cp deploy/costopolitico.{service,timer} /etc/systemd/system/
+#           sudo systemctl daemon-reload && sudo systemctl enable --now costopolitico.timer
+[Unit]
+Description=CostoPolitico - actualizar datos y regenerar la web
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=costopolitico
+WorkingDirectory=/opt/costopolitico
+ExecStart=/opt/costopolitico/deploy/actualizar.sh
+# La primera corrida baja ~35 meses de nómina (~1,5 GB): puede tardar.
+TimeoutStartSec=6h
+Nice=10

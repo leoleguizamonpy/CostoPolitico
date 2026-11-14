@@ -52,8 +52,8 @@ python -m costopolitico diputados-pdf data/crudos/planilla.pdf --url "URL_DEL_PD
 # 2b. Otras listas de viáticos: completar data/plantillas/viaticos.csv (con fuente_url por fila)
 python -m costopolitico viaticos-csv data/crudos/otros_viaticos.csv
 
-# 3. Revisar lo que no se pudo asignar
-python -m costopolitico pendientes
+# 3. Revisar lo que no se pudo asignar (con los legisladores más parecidos como sugerencia)
+python -m costopolitico pendientes --csv data/revision.csv
 
 # 4. Publicar
 python -m costopolitico exportar        # crea web/data.json
@@ -62,6 +62,23 @@ python -m http.server -d web 8000       # ver en http://localhost:8000
 
 Conviene importar primero las nóminas (SFP y Senado): de ahí salen las personas a las que
 después se asignan los viáticos. Todo es idempotente: reimportar no duplica.
+
+## Publicar en un VPS
+
+Todo está en `deploy/` (Ubuntu/Debian, nginx, systemd):
+
+```bash
+# En el VPS, como root:
+git clone https://github.com/leoleguizamonpy/CostoPolitico.git /opt/costopolitico
+DOMINIO=midominio.com bash /opt/costopolitico/deploy/instalar.sh
+certbot --nginx -d midominio.com           # HTTPS
+systemctl start costopolitico.service      # primera carga (horas: ~1,5 GB de nómina SFP)
+journalctl -u costopolitico -f             # ver el progreso
+```
+
+Después, `costopolitico.timer` actualiza solo el día 25 de cada mes: baja lo nuevo, regenera
+`data.json`, lo publica en `/var/www/costopolitico` y deja en `logs/` el registro y la lista de
+pendientes a revisar.
 
 ## Pruebas
 
@@ -76,7 +93,8 @@ python -m pytest
 - [x] Scraper del Senado (nómina y viajes con viáticos)
 - [x] Nómina de diputados y descarga automática de sus planillas de viáticos
 - [x] Descarga automática de sueldos (SFP)
-- [ ] Cron mensual en el VPS
+- [x] Kit de publicación en VPS (nginx + systemd, actualización mensual)
+- [ ] Nómina mensual del Senado (PDF, al día; cubre el hueco de la SFP desde junio 2026)
 - [ ] Canciller (no identificable en la nómina SFP)
 - [ ] Viáticos de ministros (Contraloría / portales de cada ministerio)
 - [ ] Fase 2: gasto institucional (DNCP, ejecución presupuestaria) en sección aparte

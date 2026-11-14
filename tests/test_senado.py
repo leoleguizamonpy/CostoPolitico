@@ -161,3 +161,16 @@ def test_nomina_sfp_une_apellido_de_casada(con, tmp_path):
     assert [tuple(f) for f in filas] == [("Regina Luz Valiente De Ejemplo", "2000001", "900010")]
     g = con.execute("SELECT concepto, monto FROM gastos").fetchone()
     assert tuple(g) == ("Dieta", 32606840)
+
+
+def test_pendientes_con_sugerencias(con, tmp_path, capsys):
+    from costopolitico.__main__ import _pendientes
+
+    senado.importar_nomina(con, NOMINA)
+    errata = DETALLE.replace("Ana Prueba", "Anna Pruebba Gomes Torres")  # demasiado distinta para el cruce automático
+    senado.importar_detalle(con, errata, 901)
+    ruta = tmp_path / "rev.csv"
+    _pendientes(con, str(ruta))
+    texto = ruta.read_text(encoding="utf-8")
+    assert "Anna Pruebba Gomes Torres" in texto and "Ana María Prueba Gómez" in texto
+    assert "Pedro Chofer" in capsys.readouterr().out
