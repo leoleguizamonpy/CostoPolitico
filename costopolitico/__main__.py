@@ -101,12 +101,26 @@ def main():
         print("nómina:", diputados.descargar_nomina(con))
         print("viáticos:", diputados.descargar_viaticos(con, desde_anho=a.desde))
     elif a.cmd == "actualizar":
-        # Orden: primero las nóminas (las personas), después los viajes que se cruzan con ellas.
-        print("diputados — nómina:", diputados.descargar_nomina(con))
-        print("senado:", senado.descargar_todo(con, desde_anho=a.desde))
-        print("sueldos (SFP):", sfp_nomina.descargar_meses(con, desde=_mes(a.sueldos_desde)))
-        print("diputados — viáticos:", diputados.descargar_viaticos(con, desde_anho=a.desde))
+        # Orden: primero las nóminas (las personas), después sueldos y viajes que se cruzan con ellas.
+        # Si una fuente falla, se sigue con las demás y la web se genera igual con lo que haya.
+        pasos = [
+            ("diputados — nómina", lambda: diputados.descargar_nomina(con)),
+            ("senado", lambda: senado.descargar_todo(con, desde_anho=a.desde)),
+            ("sueldos (SFP)", lambda: sfp_nomina.descargar_meses(con, desde=_mes(a.sueldos_desde))),
+            ("diputados — viáticos", lambda: diputados.descargar_viaticos(con, desde_anho=a.desde)),
+        ]
+        fallas = []
+        for nombre, paso in pasos:
+            try:
+                print(f"{nombre}:", paso(), flush=True)
+            except Exception as e:  # noqa: BLE001 - se informa y se sigue
+                con.rollback()
+                fallas.append(nombre)
+                print(f"AVISO: falló «{nombre}»: {type(e).__name__}: {str(e)[:300]}", flush=True)
         print(exportar(con))
+        if fallas:
+            print("Terminó con fallas en:", ", ".join(fallas))
+            raise SystemExit(2)
     elif a.cmd == "pendientes":
         _pendientes(con, a.csv)
     elif a.cmd == "exportar":

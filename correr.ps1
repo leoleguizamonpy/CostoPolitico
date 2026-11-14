@@ -42,9 +42,14 @@ Paso "Instalando dependencias"
 if ($LASTEXITCODE -ne 0) { throw "No se pudieron instalar las dependencias" }
 
 # 3. Datos (primero las cámaras: de ahí salen las personas; después sueldos y viajes)
+$script:fallas = @()
 function Correr($argumentos) {
+    # Si una fuente falla se avisa y se sigue: la web se genera igual con lo que se haya bajado.
     & $vpy -m costopolitico @argumentos
-    if ($LASTEXITCODE -ne 0) { throw "Falló: costopolitico $($argumentos -join ' ')" }
+    if ($LASTEXITCODE -ne 0) {
+        $script:fallas += ($argumentos -join " ")
+        Write-Host "AVISO: falló 'costopolitico $($argumentos -join ' ')'. Sigo con lo demás." -ForegroundColor Yellow
+    }
 }
 if ($Completo) {
     Paso "Carga completa 2023-2026 (unos 1,5 GB de nómina; puede tardar horas)"
@@ -58,6 +63,11 @@ if ($Completo) {
     Correr @("sueldos", "--desde", "2026-01")
     Paso "Generando la web"
     Correr @("exportar")
+}
+
+if ($script:fallas.Count -gt 0) {
+    Write-Host "`nTerminó con fallas en: $($script:fallas -join '; ')" -ForegroundColor Yellow
+    Write-Host "Copiá los mensajes de error de arriba para corregirlos. La web se abre igual con lo que se cargó."
 }
 
 # 4. Pendientes de revisión

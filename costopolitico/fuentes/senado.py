@@ -25,7 +25,7 @@ from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
 
-from .. import normalizar, personas
+from .. import normalizar, personas, red
 from .viaticos import CARGOS_LEGISLATIVO, _guardar_viaje
 
 BASE = "https://www.senado.gov.py"
@@ -154,8 +154,7 @@ def descargar_todo(con, desde_anho: int = 2023, pausa: float = 0.7, sesion=None)
     """Baja la nómina y todas las misiones desde `desde_anho`. Idempotente: reimportar no duplica."""
     import requests
 
-    s = sesion or requests.Session()
-    s.headers["User-Agent"] = "CostoPolitico/0.1 (transparencia; github.com/leoleguizamonpy/CostoPolitico)"
+    s = sesion or red.sesion()
 
     def bajar(url):
         r = s.get(url, timeout=60)

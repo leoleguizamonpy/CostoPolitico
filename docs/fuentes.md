@@ -111,6 +111,11 @@ choferes, prensa y exsenadores.
   Cámara de Senadores solo con senadores (evita asignar a un diputado el viaje de un funcionario
   del Senado con nombre común). Verificado con datos reales: los 19 diputados encontrados en la
   web del Senado aparecen únicamente en misiones del Congreso Nacional.
+- Algunos servidores .gov.py (p.ej. datos.sfp.gov.py) no envían el certificado intermedio de
+  su cadena TLS: los navegadores lo resuelven solos, Python no (`CERTIFICATE_VERIFY_FAILED`).
+  `costopolitico/red.py` hace lo mismo que el navegador: descarga el intermedio desde la URL
+  "CA Issuers" del certificado, lo guarda en `data/certs/` y verifica la cadena completa. Nunca se
+  desactiva la verificación.
 - La API de datos abiertos del Congreso (datos.congreso.gov.py) respondía con error 502 en
   noviembre de 2026; por eso se usan las páginas públicas.
 - Los asesores figuran en la nómina de cada cámara, pero sin indicar a qué legislador

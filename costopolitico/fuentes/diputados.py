@@ -22,7 +22,7 @@ import time
 
 from bs4 import BeautifulSoup
 
-from .. import normalizar, personas
+from .. import normalizar, personas, red
 
 URL_NOMINA = "https://diputados.gov.py/diputados/nomina-alfabetica"
 URL_SILPY = "https://silpy.congreso.gov.py/web/parlamentario/{}"
@@ -107,8 +107,7 @@ def importar_nomina(con, html: str, titulos: dict[str, str] | None = None) -> di
 def descargar_nomina(con, pausa: float = 0.5, sesion=None) -> dict:
     import requests
 
-    s = sesion or requests.Session()
-    s.headers["User-Agent"] = "CostoPolitico/0.1 (transparencia; github.com/leoleguizamonpy/CostoPolitico)"
+    s = sesion or red.sesion()
     r = s.get(URL_NOMINA, timeout=60)
     r.raise_for_status()
     html = r.text
@@ -177,8 +176,7 @@ def descargar_viaticos(con, desde_anho: int = 2023, pausa: float = 0.7, sesion=N
 
     from .viaticos import importar_pdf_diputados
 
-    s = sesion or requests.Session()
-    s.headers["User-Agent"] = "CostoPolitico/0.1 (transparencia; github.com/leoleguizamonpy/CostoPolitico)"
+    s = sesion or red.sesion()
     carpeta = Path(carpeta or tempfile.mkdtemp(prefix="diputados_"))
     carpeta.mkdir(parents=True, exist_ok=True)
     total = {"documentos": 0, "nueva": 0, "repetida": 0, "posible_duplicado": 0, "sin_asignar": 0, "invalida": 0}

@@ -15,7 +15,7 @@ import sys
 import zipfile
 from pathlib import Path
 
-from .. import normalizar, personas
+from .. import normalizar, personas, red
 
 FUENTE = "Nómina de funcionarios — datos abiertos SFP/VCHGO (Ley 5189/14)"
 URL_PORTAL = "https://datos.sfp.gov.py/data/funcionarios"
@@ -232,8 +232,7 @@ def descargar_meses(con, desde: tuple[int, int] = (2023, 7), hasta: tuple[int, i
 
     import requests
 
-    s = sesion or requests.Session()
-    s.headers["User-Agent"] = "CostoPolitico/0.1 (transparencia; github.com/leoleguizamonpy/CostoPolitico)"
+    s = sesion or red.sesion()
     hoy = date.today()
     hasta = hasta or (hoy.year, hoy.month)
     carpeta = Path(carpeta or tempfile.mkdtemp(prefix="sfp_"))

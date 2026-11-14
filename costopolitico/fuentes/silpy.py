@@ -18,7 +18,7 @@ import time
 
 from bs4 import BeautifulSoup
 
-from .. import normalizar
+from .. import normalizar, red
 
 URL_FICHA = "https://silpy.congreso.gov.py/web/parlamentario/{}"
 
@@ -98,8 +98,7 @@ def actualizar_fichas(con, pausa: float = 0.4, sesion=None, solo_faltantes: bool
     """Recorre las personas con ID del SILpy y actualiza partido, bancada y tipo."""
     import requests
 
-    s = sesion or requests.Session()
-    s.headers["User-Agent"] = "CostoPolitico/0.1 (transparencia; github.com/leoleguizamonpy/CostoPolitico)"
+    s = sesion or red.sesion()
     sql = "SELECT silpy_id FROM personas WHERE silpy_id IS NOT NULL"
     if solo_faltantes:
         sql += " AND bancada IS NULL"
