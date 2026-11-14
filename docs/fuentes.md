@@ -21,6 +21,7 @@ Lo que no tiene fuente no entra.
 | 3b | Cámara de Senadores — "Detalles de viajes nacionales e internacionales" (Transparencia activa, Ley 5189) | Por viaje: beneficiario, destino, motivo, fechas, **monto asignado y monto devuelto**, informe PDF. Registros desde 2008 | HTML (tabla por misión `?idMision=N`) | ✅ `fuentes/senado.py` — se guarda el **neto** (asignado − devuelto) y el informe PDF como fuente |
 | 3c | Cámara de Senadores — "Nóminas y listados" (Transparencia activa) | Nómina mensual de senadores, funcionarios, contratados y comisionados del Senado y del Congreso. **Al día (septiembre 2026)**: cubre el hueco de la SFP | PDF apaisado (~17 páginas, tabla densa) en adminweb.senado.gov.py/web/descarga?file=nomina-N | ⏳ estructura por leer con pdfplumber |
 | 2c | Cámara de Diputados — "Anexo del personal" (listado Ley 5189) | Planilla mensual de personal | PDF | ⏳ por revisar |
+| 3d | SILpy — ficha de cada legislador (silpy.congreso.gov.py/web/parlamentario/ID) | Partido ("Part./Mov./Ali./Conc."), bancada con su rol (miembro, líder…), titular o suplente | HTML | ✅ `fuentes/silpy.py` — 122 fichas leídas en nov. 2026 (80 diputados, 47 senadores y vitalicios) |
 | 4 | Contraloría General — datos abiertos de rendiciones de viáticos | Viáticos de todo el sector público | Datos abiertos | ⏳ por revisar |
 | 5 | DNCP — API de contrataciones (OCDS) · https://www.contrataciones.gov.py/datos/api/v3/doc/ | Compras y contratos por institución | API JSON | ⏳ fase 2 (gasto institucional) |
 | 6 | Pedidos por Ley 5282/14 (informacionpublica.paraguay.gov.py) | Combustible, telefonía, asesores por legislador, todo lo que no se publica | Respuestas oficiales | ⏳ carga manual con URL de la respuesta como fuente |
@@ -60,6 +61,26 @@ del mismo cargo, solo con un único candidato y nunca si tienen cédula o ID del
 **Hueco de datos:** los archivos están completos hasta abril de 2026; mayo viene parcial y desde
 junio de 2026 el portal publica archivos casi vacíos (1-6 KB; octubre, 1,4 MB). El importador no
 marca esos meses como importados y los vuelve a intentar en cada corrida.
+
+## Partido y movimiento
+
+Se toman de la ficha del SILpy de cada legislador. El **movimiento** que muestra la web es la parte
+de la bancada oficial que sigue al nombre del partido, sin reinterpretarla:
+
+| Bancada oficial (SILpy) | Partido | Movimiento en la web |
+|---|---|---|
+| BANCADA DE LA ASOCIACIÓN NACIONAL REPUBLICANA ANR - A "HONOR COLORADO" | ANR | A "Honor Colorado" |
+| BANCADA DE LA ASOCIACIÓN NACIONAL REPUBLICANA ANR - C "COLORADO AÑETETÉ" | ANR | C "Colorado Añeteté" |
+| Asociación Nacional Republicana Partido Colorado (ANR) - Independiente "A" | ANR | Independiente "A" |
+| Partido Liberal Radical Auténtico (PLRA) – Eligio Ayala | PLRA | Eligio Ayala |
+| BANCADA DEL MOVIMIENTO CONCIENCIA DEMOCRÁTICA NACIONAL -YO CREO | Movimiento Conciencia Democrática Nacional | Yo Creo |
+| BANCADA DEL PARTIDO PATRIA QUERIDA - PPQ | PPQ | (ninguno) |
+
+Las bancadas de cada cámara se muestran por separado aunque compartan letra (la "A" del Senado
+y la "A Honor Colorado" de Diputados): la fuente no dice que sean la misma. Al Poder Ejecutivo no
+se le asigna partido porque ninguna fuente oficial usada lo informa; en la web figura como "Sin
+dato de partido". El gasto por partido se muestra con total y promedio por persona, porque los
+partidos con más bancas suman más.
 
 ## Cómo se cruzan los nombres
 

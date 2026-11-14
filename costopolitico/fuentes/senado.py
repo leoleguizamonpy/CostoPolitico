@@ -163,8 +163,13 @@ def descargar_todo(con, desde_anho: int = 2023, pausa: float = 0.7, sesion=None)
         time.sleep(pausa)
         return r.text
 
+    from .silpy import actualizar_fichas
+
     total = {"nomina": importar_nomina(con, bajar(URL_NOMINA)),
+             "fichas_silpy": None,
              "misiones": 0, "nueva": 0, "repetida": 0, "posible_duplicado": 0, "sin_asignar": 0, "invalida": 0}
+    # Partido, bancada y tipo de cada senador (solo los que aún no la tienen).
+    total["fichas_silpy"] = actualizar_fichas(con, sesion=s, solo_faltantes=True)
     for m in parsear_misiones(bajar(URL_MISIONES)):
         if m["anho"] < desde_anho:
             continue

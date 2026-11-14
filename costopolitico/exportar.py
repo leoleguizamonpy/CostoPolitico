@@ -2,10 +2,24 @@
 import json
 from pathlib import Path
 
+import re
+
 from . import normalizar
+from .fuentes.silpy import movimiento
 from .db import RAIZ
 
 SALIDA = RAIZ / "web" / "data.json"
+
+
+def _partido_corto(partido: str | None) -> str | None:
+    """'Asociación Nacional Republicana ANR' -> 'ANR'; sin sigla, el nombre completo."""
+    if not partido:
+        return None
+    m = re.search(r"\b([A-ZÑ]{2,6})\s*$", partido.strip())
+    if m and not partido.isupper():  # sigla al final de un nombre escrito normal
+        return m.group(1)
+    nombre = re.sub(r"^(PARTIDO)\s+", "", partido.strip(), flags=re.IGNORECASE)
+    return nombre.title() if nombre.isupper() else nombre
 
 
 MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto",
@@ -60,7 +74,11 @@ def exportar(con, salida: Path = SALIDA) -> dict:
             "cargo": p["cargo"],
             "poder": p["poder"],
             "institucion": p["institucion"],
-            "partido": p["partido"],
+            "partido": _partido_corto(p["partido"]),
+            "partido_nombre": p["partido"],
+            "bancada": p["bancada"],
+            "movimiento": movimiento(p["bancada"], p["partido"]),
+            "suplente": bool(p["representante"] and "SUPLENTE" in p["representante"].upper()),
             "total": sum(totales.values()),
             "totales": totales,
             "periodo_desde": periodos[0] if periodos else None,

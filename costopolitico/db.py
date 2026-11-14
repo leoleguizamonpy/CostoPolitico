@@ -19,6 +19,9 @@ CREATE TABLE IF NOT EXISTS personas (
     apellidos_norm  TEXT,
     silpy_id        TEXT UNIQUE,          -- ID del legislador en silpy.congreso.gov.py
     partido         TEXT,
+    bancada         TEXT,                 -- texto oficial de la bancada (SILpy)
+    rol_bancada     TEXT,                 -- Miembro, Líder, Vicelíder…
+    representante   TEXT,                 -- "TITULAR [2023-2028]" / "SUPLENTE [2023-2028]"
     cargo           TEXT NOT NULL,        -- Senador/a, Diputado/a, Ministro/a...
     poder           TEXT NOT NULL CHECK (poder IN ('legislativo', 'ejecutivo')),
     institucion     TEXT NOT NULL
@@ -82,9 +85,11 @@ def conectar(ruta=None) -> sqlite3.Connection:
     con.row_factory = sqlite3.Row
     con.execute("PRAGMA foreign_keys = ON")
     con.executescript(ESQUEMA)
-    columnas = {c["name"] for c in con.execute("PRAGMA table_info(gastos)")}
-    if "referencia" not in columnas:  # bases creadas antes de esta columna
-        con.execute("ALTER TABLE gastos ADD COLUMN referencia TEXT")
+    # Migraciones simples para bases creadas antes de estas columnas.
+    for tabla, columna in (("gastos", "referencia"), ("personas", "bancada"),
+                           ("personas", "rol_bancada"), ("personas", "representante")):
+        if columna not in {c["name"] for c in con.execute(f"PRAGMA table_info({tabla})")}:
+            con.execute(f"ALTER TABLE {tabla} ADD COLUMN {columna} TEXT")
     cargar_alias(con)
     return con
 

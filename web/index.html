@@ -172,6 +172,24 @@
   a { color: var(--azul); }
   footer { color: var(--suave); font-size: 0.8rem; padding: 2rem var(--esp); text-align: center; }
   .oculto { display: none; }
+  .afiliacion { color: var(--suave); font-size: 0.85rem; }
+  .afiliacion b { color: var(--tinta); font-weight: 600; }
+  .etiqueta { display: inline-block; font-size: 0.72rem; border: 1px solid var(--linea); border-radius: 999px; padding: 0 0.45rem; margin-left: 0.3rem; color: var(--suave); vertical-align: 1px; }
+  .partidos { display: grid; gap: 0.35rem; }
+  .partidos details { border-bottom: 1px solid var(--linea); padding: 0.35rem 0; }
+  .partidos summary { list-style: none; cursor: pointer; }
+  .partidos summary::-webkit-details-marker { display: none; }
+  .p-fila { display: grid; grid-template-columns: minmax(7rem, 14rem) 1fr auto; gap: 0.75rem; align-items: center; }
+  .p-nombre { font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .p-nombre small { font-weight: 400; color: var(--suave); }
+  .p-barra { height: 10px; background: var(--grilla); border-radius: 0 4px 4px 0; overflow: hidden; }
+  .p-barra i { display: block; height: 100%; background: var(--s-remuneracion); border-radius: 0 4px 4px 0; }
+  .p-cifras { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; font-size: 0.9rem; }
+  .p-cifras small { display: block; color: var(--suave); font-size: 0.78rem; }
+  .p-mov { padding: 0.35rem 0 0.2rem 1rem; display: grid; gap: 0.3rem; }
+  .p-mov .p-nombre { font-weight: 500; }
+  .p-mov .p-barra { height: 6px; }
+  .p-acciones { margin: 0.25rem 0 0 1rem; font-size: 0.8rem; }
 </style>
 </head>
 <body>
@@ -201,6 +219,7 @@
     <button class="filtro" data-filtro="ejecutivo" aria-pressed="false">Ejecutivo</button>
     <select id="anho" aria-label="Año"><option value="">Todos los años</option></select>
     <select id="mes" aria-label="Mes"><option value="">Todos los meses</option></select>
+    <select id="partido" aria-label="Partido o bancada"><option value="">Todos los partidos</option></select>
     <input type="search" id="buscar" placeholder="Buscar por nombre…" aria-label="Buscar por nombre">
   </div>
 
@@ -214,6 +233,12 @@
       <button class="enlace oculto" id="quitarMes">Quitar filtro de mes</button>
     </div>
     <div class="oculto" id="tablaGrafico"></div>
+  </section>
+
+  <section class="tarjeta" aria-labelledby="tituloPartidos">
+    <h2 id="tituloPartidos">Gasto por partido y bancada</h2>
+    <p class="sub" id="subPartidos">Los partidos con más legisladores suman más: compará también el promedio por persona. Abrí un partido para ver sus bancadas (movimientos internos, según el SILpy).</p>
+    <div class="partidos" id="partidos"></div>
   </section>
 
   <section aria-labelledby="tituloRanking">
@@ -249,11 +274,25 @@
   const nombreMes = p => { const [a, m] = p.split("-"); return `${MESES[+m - 1]} ${a}`; };
 
   let datos = { personas: [] };
-  const estado = { filtro: "todos", anho: "", mes: "", q: "" };
+  const estado = { filtro: "todos", anho: "", mes: "", q: "", partido: "" };
+  const SIN_PARTIDO = "Sin dato de partido";
+  const claveP = p => p.partido || SIN_PARTIDO;
+  const claveM = p => p.movimiento || (p.bancada ? "Bancada sin movimiento" : "—");
+  function afiliacion(p) {
+    if (!p.partido) return p.poder === "ejecutivo" ? `<span class="afiliacion">Sin partido en las fuentes oficiales</span>` : "";
+    return `<span class="afiliacion" title="${esc(p.bancada || "")}"><b>${esc(p.partido)}</b>${p.movimiento ? " · " + esc(p.movimiento) : ""}</span>`;
+  }
 
   // ---------- filtros ----------
   const enGrupo = p => estado.filtro === "todos" || p.cargo.startsWith(estado.filtro) || p.poder === estado.filtro;
-  const enBusqueda = p => !estado.q || sinTildes(p.nombre).includes(estado.q);
+  const enBusqueda = p => (!estado.q || sinTildes(p.nombre).includes(estado.q)) && enPartido(p);
+  const enPartido = p => {
+    if (!estado.partido) return true;
+    const [tipo, valor] = estado.partido.split(":");
+    if (tipo === "p") return claveP(p) === valor;
+    const [pa, mo] = valor.split("|");
+    return claveP(p) === pa && claveM(p) === mo;
+  };
   const enPeriodo = g => {
     const [a, m] = g.periodo.split("-");
     return (!estado.anho || a === estado.anho) && (!estado.mes || m === estado.mes);
@@ -400,7 +439,7 @@
       `</tbody></table>`;
     const grupo = { todos: "todas las autoridades", "Senador/a": "el Senado", "Diputado/a": "Diputados", ejecutivo: "el Ejecutivo" }[estado.filtro];
     document.getElementById("subGrafico").textContent =
-      `Suma mensual de ${grupo}${estado.q ? " (búsqueda: «" + estado.q + "»)" : ""}${estado.anho ? " en " + estado.anho : ""}. Tocá una barra para filtrar ese mes.`;
+      `Suma mensual de ${grupo}${estado.partido ? " · " + estado.partido.slice(2).replace("|", " · ") : ""}${estado.q ? " (búsqueda: «" + estado.q + "»)" : ""}${estado.anho ? " en " + estado.anho : ""}. Tocá una barra para filtrar ese mes.`;
   }
 
   // ---------- ranking ----------
@@ -421,12 +460,52 @@
         <span class="pos">${i + 1}</span>
         <span>
           <span class="nombre">${esc(p.nombre)}</span><br>
-          <span class="cargo">${esc(p.cargo)}${p.partido ? " · " + esc(p.partido) : ""}</span>
+          <span class="cargo">${esc(p.cargo)}${p.suplente ? '<span class="etiqueta">suplente</span>' : ""}</span><br>
+          ${afiliacion(p)}
           <span class="apilada" style="width:${(t.total / max * 100).toFixed(1)}%">${CATEGORIAS.filter(c => t[c.id]).map(c =>
             `<i style="flex:${t[c.id]};background:${c.color}" title="${c.nombre}: ${gs(t[c.id])}"></i>`).join("")}</span>
         </span>
         <span class="monto">${gs(t.total)}</span>
       </button></li>`).join("");
+  }
+
+  // ---------- partidos y bancadas ----------
+  function pintarPartidos() {
+    const grupos = {};
+    for (const p of datos.personas) {
+      if (!enGrupo(p) || !enBusqueda(p)) continue;
+      const t = totalesDe(p).total;
+      if (!t) continue;
+      const g = (grupos[claveP(p)] ||= { nombre: claveP(p), largo: p.partido_nombre || "", total: 0, personas: 0, movs: {} });
+      g.total += t; g.personas++;
+      const m = (g.movs[claveM(p)] ||= { nombre: claveM(p), total: 0, personas: 0, camaras: new Set() });
+      m.total += t; m.personas++; m.camaras.add(p.cargo.startsWith("Senador") ? "Senado" : p.cargo.startsWith("Diputado") ? "Diputados" : "Ejecutivo");
+    }
+    // Primero los partidos, ordenados por total; al final quienes no tienen partido informado.
+    const lista = Object.values(grupos).sort((a, b) => (a.nombre === SIN_PARTIDO) - (b.nombre === SIN_PARTIDO) || b.total - a.total);
+    const cont = document.getElementById("partidos");
+    if (!lista.length) { cont.innerHTML = `<p class="vacio">Sin datos para este filtro.</p>`; return; }
+    const max = Math.max(...lista.map(g => g.total));
+    const fila = (nombre, sub, total, personas, maxRef) => `
+      <div class="p-fila">
+        <span class="p-nombre" title="${esc(sub || nombre)}">${esc(nombre)}${sub ? ` <small>${esc(sub)}</small>` : ""}</span>
+        <span class="p-barra"><i style="width:${(total / maxRef * 100).toFixed(1)}%"></i></span>
+        <span class="p-cifras">${gs(total)}<small>${personas} ${personas === 1 ? "persona" : "personas"} · ${gs(total / personas)} c/u</small></span>
+      </div>`;
+    cont.innerHTML = lista.map(g => {
+      const movs = Object.values(g.movs).sort((a, b) => b.total - a.total);
+      const hayMovs = movs.length > 1 || (movs[0] && movs[0].nombre !== "—");
+      const valorP = "p:" + g.nombre;
+      return `<details${estado.partido.startsWith(valorP) || estado.partido.startsWith("m:" + g.nombre + "|") ? " open" : ""}>
+        <summary>${fila(g.nombre, g.nombre === SIN_PARTIDO ? "(Poder Ejecutivo)" : "", g.total, g.personas, max)}</summary>
+        ${hayMovs ? `<div class="p-mov">${movs.map(m => fila(m.nombre === "—" ? "Sin bancada informada" : m.nombre,
+            [...m.camaras].join(", "), m.total, m.personas, g.total)).join("")}</div>` : ""}
+        <div class="p-acciones"><button class="enlace" data-partido="${esc(valorP)}">Ver solo ${esc(g.nombre)}</button></div>
+      </details>`;
+    }).join("");
+    cont.querySelectorAll("[data-partido]").forEach(b => b.addEventListener("click", () => {
+      estado.partido = b.dataset.partido; pintarTodo();
+    }));
   }
 
   // ---------- resumen ----------
@@ -464,8 +543,9 @@
     const per = estado.mes ? nombreMes(`${estado.anho}-${estado.mes}`) : estado.anho || "todo el período";
     document.getElementById("fichaContenido").innerHTML = `
       <button class="cerrar" aria-label="Cerrar" onclick="document.getElementById('ficha').close()">×</button>
-      <small>${esc(p.cargo)} · ${esc(p.institucion)}${p.partido ? " · " + esc(p.partido) : ""}</small>
+      <small>${esc(p.cargo)} · ${esc(p.institucion)}${p.suplente ? " · suplente en ejercicio" : ""}</small>
       <h2>${esc(p.nombre)}</h2>
+      <p style="margin:0.25rem 0 0">${afiliacion(p)}${p.bancada ? `<br><small class="cargo">Bancada: ${esc(p.bancada)}</small>` : ""}</p>
       <p class="monto">${gs(t.total)} <small class="cargo">(${esc(per)})</small></p>
       <div class="categorias">${cats}</div>
       <table><thead><tr><th>Fecha</th><th>Concepto</th><th class="num">Monto</th><th></th></tr></thead><tbody>${filas || `<tr><td colspan="4" class="vacio">Sin gastos en este período.</td></tr>`}</tbody></table>`;
@@ -481,12 +561,27 @@
     document.getElementById("mes").innerHTML = `<option value="">Todos los meses</option>` +
       MESES.map((m, i) => `<option value="${String(i + 1).padStart(2, "0")}">${m[0].toUpperCase() + m.slice(1)}</option>`).join("");
   }
+  function llenarPartidos() {
+    const mapa = {};
+    for (const p of datos.personas) {
+      if (!p.partido) continue;
+      (mapa[p.partido] ||= new Set()).add(claveM(p));
+    }
+    const opciones = Object.keys(mapa).sort().map(pa => {
+      const movs = [...mapa[pa]].filter(m => m !== "—" && m !== "Bancada sin movimiento").sort();
+      return `<optgroup label="${esc(pa)}"><option value="p:${esc(pa)}">${esc(pa)} (todo)</option>` +
+        movs.map(m => `<option value="m:${esc(pa)}|${esc(m)}">${esc(pa)} · ${esc(m)}</option>`).join("") + `</optgroup>`;
+    }).join("");
+    document.getElementById("partido").innerHTML = `<option value="">Todos los partidos</option>` + opciones +
+      `<option value="p:${SIN_PARTIDO}">${SIN_PARTIDO}</option>`;
+  }
   function sincronizarSelects() {
+    document.getElementById("partido").value = estado.partido;
     document.getElementById("anho").value = estado.anho;
     document.getElementById("mes").value = estado.mes;
     document.getElementById("quitarMes").classList.toggle("oculto", !estado.mes);
   }
-  function pintarTodo() { pintarResumen(); pintarGrafico(); pintarRanking(); sincronizarSelects(); }
+  function pintarTodo() { pintarResumen(); pintarGrafico(); pintarPartidos(); pintarRanking(); sincronizarSelects(); }
 
   document.querySelectorAll(".filtro").forEach(b => b.addEventListener("click", () => {
     estado.filtro = b.dataset.filtro;
@@ -495,6 +590,7 @@
   }));
   document.getElementById("anho").addEventListener("change", e => { estado.anho = e.target.value; pintarTodo(); });
   document.getElementById("mes").addEventListener("change", e => { estado.mes = e.target.value; pintarTodo(); });
+  document.getElementById("partido").addEventListener("change", e => { estado.partido = e.target.value; pintarTodo(); });
   document.getElementById("buscar").addEventListener("input", e => { estado.q = sinTildes(e.target.value.trim()); pintarTodo(); });
   document.getElementById("quitarMes").addEventListener("click", () => { estado.mes = ""; pintarTodo(); });
   document.getElementById("verTabla").addEventListener("click", e => {
@@ -516,6 +612,7 @@
       const incluye = (d.cobertura || []).map(c => `${NOMBRE_CAT[c.categoria] ?? c.categoria} (${c.fuente.split(" — ")[0]}, ${c.desde} a ${c.hasta})`).join("; ");
       document.getElementById("aviso").textContent = `${d.aviso}${incluye ? " Incluye: " + incluye + "." : ""} Actualizado al ${hoy}.`;
       llenarSelects();
+      llenarPartidos();
       contador();
       pintarTodo();
     })

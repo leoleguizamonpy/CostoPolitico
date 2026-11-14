@@ -112,18 +112,25 @@ def descargar_nomina(con, pausa: float = 0.5, sesion=None) -> dict:
     r = s.get(URL_NOMINA, timeout=60)
     r.raise_for_status()
     html = r.text
-    titulos = {}
+    from .silpy import guardar_ficha, parsear_ficha
+
+    titulos, fichas = {}, {}
     for d in parsear_nomina(html):
         if not d["silpy_id"]:
             continue
         try:
             f = s.get(URL_SILPY.format(d["silpy_id"]), timeout=60)
             f.raise_for_status()
-            titulos[d["silpy_id"]] = titulo_silpy(f.text)
+            fichas[d["silpy_id"]] = ficha = parsear_ficha(f.text)
+            titulos[d["silpy_id"]] = ficha["nombre"]
         except requests.RequestException:
             pass  # sin ficha: el corte se estima y queda marcado
         time.sleep(pausa)
-    return importar_nomina(con, html, titulos)
+    res = importar_nomina(con, html, titulos)
+    for sid, ficha in fichas.items():  # partido, bancada y tipo (titular/suplente)
+        guardar_ficha(con, sid, ficha)
+    con.commit()
+    return res
 
 
 # ---------- viáticos: PDF mensual "VIAJES OFICIALES DE MISIONES PARLAMENTARIAS" ----------
