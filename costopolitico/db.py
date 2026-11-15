@@ -75,6 +75,26 @@ CREATE TABLE IF NOT EXISTS sin_asignar (
     fuente_url  TEXT NOT NULL,
     huella      TEXT NOT NULL UNIQUE
 );
+
+-- Funcionarios de OTRA institución asignados ("comisionados") al despacho de un legislador.
+-- Su sueldo lo paga la institución de origen; aquí se guarda quién trabaja para quién y desde
+-- cuándo, y el sueldo se toma después de la nómina de la SFP cruzando por cédula.
+CREATE TABLE IF NOT EXISTS comisionados (
+    id                INTEGER PRIMARY KEY,
+    documento         TEXT NOT NULL,            -- cédula, solo dígitos (no se publica)
+    persona_id        INTEGER REFERENCES personas(id),
+    cargo_legislador  TEXT NOT NULL,            -- Senador/a o Diputado/a
+    nombre_legislador TEXT NOT NULL,            -- tal como figura en la función
+    metodo            TEXT,                     -- cómo se cruzó el nombre del legislador
+    entidad           TEXT,                     -- institución de origen o destino, según el listado
+    funcion           TEXT,
+    desde             TEXT,                     -- AAAA-MM-DD
+    hasta             TEXT,                     -- AAAA-MM-DD
+    fuente_url        TEXT NOT NULL,
+    descargado_en     TEXT NOT NULL,
+    huella            TEXT NOT NULL UNIQUE
+);
+CREATE INDEX IF NOT EXISTS comisionados_documento ON comisionados(documento);
 """
 
 

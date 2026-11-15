@@ -1,7 +1,8 @@
 # ¿Cuánto te cuestan tus políticos?
 
 Cuánto dinero público se asigna a cada **senador, diputado y autoridad del Ejecutivo** del
-Paraguay: sueldo, gastos de representación, viáticos y personal de su despacho. **Cada monto con
+Paraguay: sueldo, gastos de representación, viáticos y personal de su despacho (incluido el
+comisionado desde otras instituciones). **Cada monto con
 su fuente oficial.**
 
 La web muestra cuánto cuestan todos juntos por día (con un contador en vivo desde las 00:00),
@@ -61,6 +62,8 @@ python -m costopolitico actualizar --desde 2023
 #    O por partes:
 python -m costopolitico diputados --desde 2023   # nómina + planillas mensuales de viáticos
 python -m costopolitico senado --desde 2023      # nómina + viajes
+python -m costopolitico comisionados --desde 2023  # personal de otras instituciones en despachos
+                                                  # (después correr "sueldos": suma sus sueldos)
 python -m costopolitico diputados-pdf data/crudos/planilla.pdf --url "URL_DEL_PDF"   # un PDF suelto
 
 # 2b. Otras listas de viáticos: completar data/plantillas/viaticos.csv (con fuente_url por fila)
@@ -132,6 +135,8 @@ python -m pytest
 - [x] Nómina de diputados y descarga automática de sus planillas de viáticos
 - [x] Descarga automática de sueldos (SFP)
 - [x] Kit de publicación en VPS (nginx + systemd, actualización mensual)
+- [x] Personal comisionado de otras instituciones en despachos (listados de Diputados)
+- [ ] Comisionados a despachos del Senado desde otras instituciones
 - [ ] Nómina mensual del Senado (PDF, al día; cubre el hueco de la SFP desde junio 2026)
 - [ ] Canciller (no identificable en la nómina SFP)
 - [ ] Viáticos de ministros (Contraloría / portales de cada ministerio)

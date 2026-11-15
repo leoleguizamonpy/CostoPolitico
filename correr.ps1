@@ -59,6 +59,8 @@ if ($Completo) {
     Correr @("diputados", "--desde", "2025")
     Paso "Senado: nómina, partidos y viajes"
     Correr @("senado", "--desde", "2025")
+    Paso "Personal comisionado de otras instituciones en despachos"
+    Correr @("comisionados", "--desde", "2025")
     Paso "Sueldos (nómina SFP) desde enero de 2026"
     Correr @("sueldos", "--desde", "2026-01")
     Paso "Generando la web"

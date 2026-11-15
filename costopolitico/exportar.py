@@ -35,18 +35,21 @@ def _agrupar_remuneraciones(gastos: list[dict]) -> list[dict]:
         if g["categoria"] not in ("remuneracion", "asesores") or g["periodo"] == "s/f":
             otros.append(g)
             continue
-        m = por_mes.setdefault((g["categoria"], g["periodo"]), {**g, "monto": 0, "partes": {}, "refs": set()})
+        m = por_mes.setdefault((g["categoria"], g["periodo"]), {**g, "monto": 0, "partes": {}, "refs": set(), "comis": set()})
         m["monto"] += g["monto"]
         clave = g["concepto"] if g["categoria"] == "remuneracion" else (g.get("detalle") or "").split(" · ")[0].title()
         m["partes"][clave] = m["partes"].get(clave, 0) + g["monto"]
         if g.get("referencia"):
             m["refs"].add(g["referencia"])
+            if g["concepto"].startswith("Personal comisionado"):
+                m["comis"].add(g["referencia"])
     for (categoria, periodo), m in por_mes.items():
         a, mm = periodo.split("-")
         mes = f"{MESES[int(mm) - 1]} {a}"
-        n = len(m.pop("refs"))
+        n, k = len(m.pop("refs")), len(m.pop("comis"))
+        extra = f" ({k} comisionada{'s' if k != 1 else ''} de otras instituciones)" if k else ""
         m["concepto"] = (f"Remuneración de {mes}" if categoria == "remuneracion"
-                         else f"Personal del despacho de {mes}: {n} persona{'s' if n != 1 else ''}")
+                         else f"Personal del despacho de {mes}: {n} persona{'s' if n != 1 else ''}{extra}")
         m["detalle"] = " · ".join(f"{k}: ₲ {v:,}".replace(",", ".") for k, v in
                                   sorted(m.pop("partes").items(), key=lambda kv: -kv[1]))
         m.pop("referencia", None)

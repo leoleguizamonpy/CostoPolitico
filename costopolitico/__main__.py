@@ -6,6 +6,7 @@
   python -m costopolitico viaticos-csv RUTA_CSV
   python -m costopolitico senado [--desde 2023]
   python -m costopolitico diputados [--desde 2023]
+  python -m costopolitico comisionados [--desde 2023]  (personal de otras instituciones en despachos)
   python -m costopolitico actualizar [--desde 2023]   (todo lo automático + exportar)
   python -m costopolitico pendientes
   python -m costopolitico controles                 (revisiones automáticas de consistencia)
@@ -17,7 +18,7 @@ import argparse
 
 from .db import conectar
 from .exportar import exportar
-from .fuentes import diputados, senado, sfp_nomina, viaticos
+from .fuentes import comisionados, diputados, senado, sfp_nomina, viaticos
 
 
 def _mes(texto: str) -> tuple[int, int]:
@@ -80,6 +81,9 @@ def main():
     s = sub.add_parser("diputados", help="bajar nómina de diputados y planillas de viáticos")
     s.add_argument("--desde", type=int, default=2023)
 
+    s = sub.add_parser("comisionados", help="bajar listados de funcionarios comisionados a despachos (Diputados)")
+    s.add_argument("--desde", type=int, default=2023)
+
     s = sub.add_parser("actualizar", help="nóminas, sueldos, viajes y exportación (para cron)")
     s.add_argument("--desde", type=int, default=2023, help="año desde el que se bajan los viajes")
     s.add_argument("--sueldos-desde", default="2023-07", help="AAAA-MM desde el que se bajan sueldos")
@@ -110,12 +114,16 @@ def main():
     elif a.cmd == "diputados":
         print("nómina:", diputados.descargar_nomina(con))
         print("viáticos:", diputados.descargar_viaticos(con, desde_anho=a.desde))
+    elif a.cmd == "comisionados":
+        print(comisionados.descargar(con, desde_anho=a.desde))
+        print("Los sueldos de estas personas se suman al correr «sueldos» (se releen los meses afectados).")
     elif a.cmd == "actualizar":
         # Orden: primero las nóminas (las personas), después sueldos y viajes que se cruzan con ellas.
         # Si una fuente falla, se sigue con las demás y la web se genera igual con lo que haya.
         pasos = [
             ("diputados — nómina", lambda: diputados.descargar_nomina(con)),
             ("senado", lambda: senado.descargar_todo(con, desde_anho=a.desde)),
+            ("comisionados", lambda: comisionados.descargar(con, desde_anho=a.desde)),
             ("sueldos (SFP)", lambda: sfp_nomina.descargar_meses(con, desde=_mes(a.sueldos_desde))),
             ("diputados — viáticos", lambda: diputados.descargar_viaticos(con, desde_anho=a.desde)),
         ]

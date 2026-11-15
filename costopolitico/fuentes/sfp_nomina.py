@@ -106,15 +106,28 @@ def importar(con, ruta, fuente_url: str = URL_PORTAL) -> dict:
     lector = csv.DictReader(texto, delimiter=delimitador)
     col = _mapear_columnas(lector.fieldnames or [])
     descargado = normalizar.ahora()
-    stats = {"filas": 0, "politicos": 0, "gastos_nuevos": 0, "personal_despacho": 0, "personal_sin_asignar": 0}
+    stats = {"filas": 0, "politicos": 0, "gastos_nuevos": 0, "personal_despacho": 0, "personal_sin_asignar": 0,
+             "comisionados": 0}
     repetidas: dict = {}
     personal: list = []  # (cargo del legislador, nombre, fila) — se asignan al final, ya cargados todos
+    from . import comisionados
+    asignados = comisionados.vigentes(con)  # cédula -> despacho donde está comisionado
+    comision: list = []
 
     def v(fila, clave):
         return (fila.get(col.get(clave, ""), "") or "").strip()
 
     for fila in lector:
         stats["filas"] += 1
+        # Comisionados: funcionarios de cualquier institución que trabajan en un despacho.
+        # Se buscan por cédula antes del filtro por entidad, porque su sueldo lo paga otra.
+        if asignados:
+            doc = re.sub(r"\D", "", fila.get(col.get("documento", ""), "") or "")
+            if doc in asignados and not personas.clasificar(v(fila, "entidad"), v(fila, "cargo"), v(fila, "funcion")) \
+                    and not (_DESPACHO.search(normalizar.nombre(v(fila, "funcion")))
+                             and _CAMARAS.search(normalizar.nombre(v(fila, "entidad")))):
+                comision.append((asignados[doc], {k: v(fila, k) for k in col}))
+                continue
         # Filtro barato antes de las expresiones regulares: ~1 millón de filas por mes.
         if not _ENTIDADES.search(fila.get(col["entidad"], "") or ""):
             continue
@@ -160,6 +173,7 @@ def importar(con, ruta, fuente_url: str = URL_PORTAL) -> dict:
         )
         stats["gastos_nuevos"] += cur.rowcount
     _asignar_personal(con, personal, fuente_url, descargado, stats)
+    _asignar_comisionados(con, comision, fuente_url, descargado, stats)
     con.commit()
     texto.close()
     return stats
@@ -200,6 +214,39 @@ def _asignar_personal(con, personal, fuente_url, descargado, stats):
         stats["personal_despacho"] += cur.rowcount
 
 
+def _asignar_comisionados(con, comision, fuente_url, descargado, stats):
+    """Sueldo de cada comisionado, en los meses en que estuvo asignado a un despacho."""
+    from .comisionados import legislador_en
+
+    repetidas: dict = {}
+    for asignaciones, f in comision:
+        monto = normalizar.monto(f.get("devengado"))
+        anho, mes = f.get("anho", ""), f.get("mes", "")
+        if not monto or not (anho.isdigit() and mes.isdigit()):
+            continue
+        periodo = f"{int(anho):04d}-{int(mes):02d}"
+        a = legislador_en(asignaciones, periodo)
+        if not a:
+            continue
+        # Mismo identificador que el personal de planta: si alguien cambia de régimen
+        # se cuenta una sola persona.
+        ref = normalizar.huella("personal", f.get("documento"))[:12]
+        objeto = f.get("objeto_gasto", "")
+        clave = (a["persona_id"], ref, periodo, objeto, monto)
+        repetidas[clave] = n = repetidas.get(clave, 0) + 1
+        detalle = " · ".join(x for x in (
+            f"Comisionado ({(f.get('entidad') or 'otra institución').title()})",
+            f"objeto de gasto {objeto}" if objeto else "",
+            f"cruce {a['metodo']}: «{a['nombre_legislador']}»" if a["metodo"] in personas.METODOS_A_REVISAR else "",
+        ) if x)
+        stats["comisionados"] += con.execute(
+            "INSERT OR IGNORE INTO gastos (persona_id, categoria, concepto, monto, periodo, detalle,"
+            " fuente_nombre, fuente_url, descargado_en, referencia, huella) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            (a["persona_id"], "asesores", "Personal comisionado de otra institución", monto, periodo, detalle,
+             FUENTE, fuente_url, descargado, ref,
+             normalizar.huella("comisionado", a["persona_id"], ref, periodo, objeto, monto, n))).rowcount
+
+
 if __name__ == "__main__":
     from ..db import conectar
     print(importar(conectar(), sys.argv[1]))
@@ -237,10 +284,18 @@ def descargar_meses(con, desde: tuple[int, int] = (2023, 7), hasta: tuple[int, i
     hasta = hasta or (hoy.year, hoy.month)
     carpeta = Path(carpeta or tempfile.mkdtemp(prefix="sfp_"))
     carpeta.mkdir(parents=True, exist_ok=True)
+    from . import comisionados
+
     resumen = {"importados": [], "ya_importados": 0, "incompletos": [], "no_publicados": []}
     for a, m in meses(desde, hasta):
         clave = f"{a}-{m:02d}"
-        if con.execute("SELECT 1 FROM importaciones WHERE fuente='sfp' AND clave=?", (clave,)).fetchone():
+        hecho = con.execute("SELECT 1 FROM importaciones WHERE fuente='sfp' AND clave=?", (clave,)).fetchone()
+        firma = comisionados.firma(con, clave)
+        previa = con.execute("SELECT resultado FROM importaciones WHERE fuente='sfp-comisionados' AND clave=?",
+                             (clave,)).fetchone()
+        # Un mes ya leído se vuelve a leer solo si aparecieron comisionados nuevos (la nómina
+        # completa no se guarda). Reimportar no duplica: cada gasto tiene huella única.
+        if hecho and firma == (previa[0] if previa else ""):
             resumen["ya_importados"] += 1
             continue
         url = URL_MES.format(anho=a, mes=m)
@@ -262,6 +317,8 @@ def descargar_meses(con, desde: tuple[int, int] = (2023, 7), hasta: tuple[int, i
         res = importar(con, destino, url)
         con.execute("INSERT OR REPLACE INTO importaciones VALUES ('sfp', ?, ?, ?)",
                     (clave, normalizar.ahora(), str(res)))
+        con.execute("INSERT OR REPLACE INTO importaciones VALUES ('sfp-comisionados', ?, ?, ?)",
+                    (clave, normalizar.ahora(), firma))
         con.commit()
         destino.unlink(missing_ok=True)
         resumen["importados"].append(clave)

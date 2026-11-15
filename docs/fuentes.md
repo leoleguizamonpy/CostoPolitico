@@ -54,6 +54,25 @@ diputados (₲ 222.927.273). Es un **mínimo comprobable**: quien figura sin ind
 sirve no se puede atribuir. Nombres que no cruzan (p.ej. "DESPACHO DEL SENADOR WALTER", cortado
 en la fuente) quedan en pendientes.
 
+**Personal comisionado.** Además del personal de planta, un despacho puede tener funcionarios
+de *otra* institución (ministerios, municipalidades, ESSAP, la otra cámara…) que siguen cobrando de
+su institución de origen. Diputados publica cada mes en la Ley 5189 dos listados en PDF:
+"Funcionarios comisionados A la Honorable Cámara de Diputados" (vienen de afuera) y
+"…DE la Honorable Cámara de Diputados A otras instituciones" (entre ellos, a despachos de
+senadores). Columnas: Nº | CÉDULA | NOMBRES APELLIDOS | ENTIDAD | FUNCIÓN QUE CUMPLE | RESOLUCIÓN |
+FECHA ACTO ADMINISTRATIVO | FECHA DE FINALIZACIÓN. En julio de 2023, 44 de los comisionados a
+Diputados trabajaban en un despacho con nombre.
+
+`fuentes/comisionados.py` guarda la cédula, el legislador y la vigencia (fecha del acto a fecha
+de finalización) de los que dicen "DESPACHO … DEL/DE LA SENADOR/A|DIPUTADO/A NOMBRE"; los asignados a
+direcciones, comisiones o bancadas no se atribuyen. Después, al leer cada mes de la SFP, se busca
+esa cédula en **cualquier** institución y su devengado de ese mes se suma al legislador como
+"Personal comisionado de otra institución" (categoría personal del despacho, sin nombres). Si la
+nómina de la cámara ya lo muestra en el despacho, se cuenta una sola vez. Cuando aparecen
+asignaciones nuevas, `sueldos` vuelve a leer solo los meses que cambian.
+Falta: el Senado no publica (en formato legible) quién viene comisionado a sus despachos desde
+otras instituciones; solo se cubren los que presta Diputados.
+
 La misma persona puede figurar con otro segundo apellido (de casada: "Valiente Cabrera" en la
 nómina, "Valiente de Rodríguez" en el Senado). Se unen por primer nombre + primer apellido dentro
 del mismo cargo, solo con un único candidato y nunca si tienen cédula o ID del SILpy distintos.
@@ -118,5 +137,9 @@ choferes, prensa y exsenadores.
   desactiva la verificación.
 - La API de datos abiertos del Congreso (datos.congreso.gov.py) respondía con error 502 en
   noviembre de 2026; por eso se usan las páginas públicas.
-- Los asesores figuran en la nómina de cada cámara, pero sin indicar a qué legislador
-  responden. Hace falta otra fuente (resoluciones o pedido por Ley 5282).
+- Parte del personal de las cámaras figura sin indicar a qué legislador responde: no se
+  atribuye. Hace falta otra fuente (resoluciones o pedido por Ley 5282).
+- Pasajes, cupos de combustible, seguro médico privado, vehículos, choferes de la flota,
+  custodia policial y telefonía se pagan con contratos de toda la institución: ninguna fuente
+  oficial publica cuánto corresponde a cada persona, así que no se suman (no se publican
+  estimaciones).
